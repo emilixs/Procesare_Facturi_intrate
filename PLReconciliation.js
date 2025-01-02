@@ -15,9 +15,16 @@ function showProgressDialog() {
           }
           .container {
             background-color: white;
-            padding: 20px;
+            padding: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          .title {
+            color: #1a73e8;
+            margin-bottom: 20px;
+            font-size: 18px;
+            font-weight: 500;
+            text-align: center;
           }
           .progress-bar {
             width: 100%;
@@ -34,6 +41,34 @@ function showProgressDialog() {
             transition: width 0.3s ease;
             animation: pulse 2s infinite;
           }
+          .loading-bar {
+            width: 100%;
+            height: 36px;
+            background: #f1f3f4;
+            border-radius: 4px;
+            margin: 15px 0;
+            position: relative;
+            overflow: hidden;
+          }
+          .loading-bar::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 30%;
+            background: linear-gradient(
+              90deg,
+              transparent,
+              rgba(26, 115, 232, 0.2),
+              transparent
+            );
+            animation: loading 1.5s infinite;
+          }
+          @keyframes loading {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+          }
           @keyframes pulse {
             0% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -43,23 +78,71 @@ function showProgressDialog() {
             color: #5f6368; 
             margin-top: 10px;
             font-size: 14px;
+            text-align: center;
+          }
+          .company-name {
+            color: #1a73e8;
+            font-weight: 500;
           }
           .stats { 
             margin-top: 20px;
-            padding: 10px;
+            padding: 12px;
             background-color: #f8f9fa;
             border-radius: 4px;
             font-size: 13px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            text-align: center;
+          }
+          .stat-item {
+            padding: 8px;
+            background: white;
+            border-radius: 4px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+          }
+          .stat-label {
+            color: #5f6368;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+          }
+          .stat-value {
+            color: #1a73e8;
+            font-weight: 500;
+            font-size: 14px;
+            margin-top: 4px;
           }
         </style>
       </head>
       <body>
         <div class="container">
+          <div class="title">P&L Reconciliation</div>
+          
           <div class="progress-bar">
             <div class="progress-fill" id="progressBar"></div>
           </div>
-          <div class="status" id="status">Initializing...</div>
-          <div class="stats" id="stats"></div>
+          
+          <div class="loading-bar"></div>
+          
+          <div class="status">
+            Processing: <span class="company-name" id="currentCompany">Initializing...</span>
+          </div>
+          
+          <div class="stats">
+            <div class="stat-item">
+              <div class="stat-label">Processed</div>
+              <div class="stat-value" id="processed">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Matches</div>
+              <div class="stat-value" id="matches">0</div>
+            </div>
+            <div class="stat-item">
+              <div class="stat-label">Time</div>
+              <div class="stat-value" id="time">0s</div>
+            </div>
+          </div>
         </div>
         
         <script>
@@ -70,13 +153,12 @@ function showProgressDialog() {
               document.getElementById('progressBar').style.width = data.progress + '%';
             }
             if (data.status) {
-              document.getElementById('status').textContent = data.status;
+              document.getElementById('currentCompany').textContent = data.status;
             }
             if (data.stats) {
-              document.getElementById('stats').textContent = 
-                'Processed: ' + data.stats.processed + 
-                ' | Matches: ' + data.stats.matches +
-                ' | Time: ' + data.stats.time + 's';
+              document.getElementById('processed').textContent = data.stats.processed;
+              document.getElementById('matches').textContent = data.stats.matches;
+              document.getElementById('time').textContent = data.stats.time + 's';
             }
           }
           
@@ -93,8 +175,8 @@ function showProgressDialog() {
   `);
   
   return html.evaluate()
-    .setWidth(400)
-    .setHeight(180)
+    .setWidth(450)
+    .setHeight(300)
     .setTitle('P&L Reconciliation Progress');
 }
 
