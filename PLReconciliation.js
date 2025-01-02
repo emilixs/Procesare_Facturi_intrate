@@ -101,8 +101,14 @@ function startPLReconciliation(month, plUrl) {
         matched: match.matched,
         confidence: match.confidence,
         processingTime: matchProcessingTime,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        requestStatus: match.matched ? 'success' : 'no_match'
       });
+      
+      // Add a small delay between requests to avoid rate limiting
+      if (i < sourceData.length - 1) {
+        Utilities.sleep(200); // 200ms delay between requests
+      }
       
       if (match.matched && match.confidence > 0.8) {
         const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;

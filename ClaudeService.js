@@ -39,12 +39,34 @@ Reply only with a JSON object in this format:
         const response = this.callClaude(prompt);
         return JSON.parse(response);
       } catch (error) {
-        console.error('Client matching error:', error);
-        return {
-          matched: false,
-          lineNumber: null,
-          confidence: 0
-        };
+        console.error('Client matching error:', {
+          error: error.message,
+          stack: error.stack,
+          invoiceClient,
+          plClientsCount: plClients.length,
+          timestamp: new Date().toISOString(),
+          details: error.details || 'No additional details'
+        });
+        
+        // Implement retry logic
+        try {
+          console.log('Retrying API call...');
+          Utilities.sleep(1000); // Wait 1 second before retry
+          const retryResponse = this.callClaude(prompt);
+          return JSON.parse(retryResponse);
+        } catch (retryError) {
+          console.error('Retry failed:', {
+            error: retryError.message,
+            invoiceClient,
+            timestamp: new Date().toISOString()
+          });
+          
+          return {
+            matched: false,
+            lineNumber: null,
+            confidence: 0
+          };
+        }
       }
     },
 
@@ -57,23 +79,47 @@ Reply only with a JSON object in this format:
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'anthropic-version': '2024-10-22'
         },
         muteHttpExceptions: true,
         payload: JSON.stringify({
-          prompt: prompt,
-          max_tokens: 150,
+          model: "claude-3-sonnet-20241022",
+          max_tokens: 4000,
           temperature: 0,
-          model: 'claude-2'
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
         })
       };
 
       const response = UrlFetchApp.fetch(this.endpoint, options);
-      if (response.getResponseCode() !== 200) {
-        throw new Error('Claude API request failed');
+      const responseCode = response.getResponseCode();
+      const responseBody = response.getContentText();
+      
+      if (responseCode !== 200) {
+        const error = new Error('Claude API request failed');
+        error.details = {
+          statusCode: responseCode,
+          response: responseBody,
+          headers: response.getHeaders()
+        };
+        throw error;
       }
 
-      return JSON.parse(response.getContentText()).completion;
+      const parsedResponse = JSON.parse(responseBody);
+      if (!parsedResponse.content) {
+        const error = new Error('Invalid response format from Claude API');
+        error.details = {
+          response: parsedResponse
+        };
+        throw error;
+      }
+
+      return parsedResponse.content[0].text;
     }
   };
 }
