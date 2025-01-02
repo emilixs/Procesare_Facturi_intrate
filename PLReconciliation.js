@@ -188,9 +188,90 @@ function updateProgressInfo(data) {
 }
 
 /**
+ * Process a batch of invoice entries
+ * @param {Array} batch Array of entries to process
+ * @param {Object} context Processing context and resources
+ * @returns {Promise<Array>} Processing results
+ */
+async function processBatch(batch, context) {
+  const {
+    claude,
+    plClients,
+    sourceSheet,
+    revenuesSheet,
+    targetColumnIndex,
+    matchedColumnIndex,
+    requestId,
+    month
+  } = context;
+  
+  const results = [];
+  
+  for (const entry of batch) {
+    const { row, invoiceClient, invoiceValue } = entry;
+    
+    // Check if already matched
+    const matchedCell = sourceSheet.getRange(row + 1, matchedColumnIndex);
+    const existingMatch = matchedCell.getValue();
+    
+    if (existingMatch) {
+      console.log(`[${requestId}] Skipping already matched row ${row + 1}: ${invoiceClient}`);
+      results.push({ skipped: true, row });
+      continue;
+    }
+    
+    // Pre-request logging
+    console.log(`[${requestId}] Processing client match request:`, {
+      invoiceClient,
+      plClientsCount: plClients.length,
+      timestamp: new Date().toISOString()
+    });
+    
+    const matchStartTime = new Date();
+    const match = claude.matchClient(invoiceClient, plClients);
+    const matchProcessingTime = new Date() - matchStartTime;
+    
+    if (match.matched && match.confidence > 0.8) {
+      const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;
+      const newValue = currentValue + Number(invoiceValue);
+      
+      // Update P&L
+      revenuesSheet.getRange(match.lineNumber, targetColumnIndex).setValue(newValue);
+      
+      // Update source sheet
+      const cellRef = `${columnToLetter(targetColumnIndex)}${match.lineNumber}`;
+      matchedCell.setValue(cellRef);
+      matchedCell.setBackground(COLORS.MATCHED);
+      
+      results.push({
+        matched: true,
+        row,
+        timestamp: new Date(),
+        requestId,
+        invoiceClient,
+        plClient: plClients[match.lineNumber - 1].name,
+        value: invoiceValue,
+        oldValue: currentValue,
+        newValue: newValue,
+        confidence: match.confidence,
+        month,
+        processingTime: matchProcessingTime,
+        plReference: cellRef
+      });
+    } else {
+      matchedCell.setBackground(COLORS.UNMATCHED);
+      results.push({ matched: false, row });
+    }
+    
+    // Small delay between items in batch
+    Utilities.sleep(200);
+  }
+  
+  return results;
+}
+
+/**
  * Starts the P&L reconciliation process
- * @param {string} month Reference month (e.g., "January")
- * @param {string} plUrl URL of the P&L spreadsheet
  */
 function startPLReconciliation(month, plUrl) {
   // Show progress dialog
@@ -259,110 +340,85 @@ function startPLReconciliation(month, plUrl) {
       ]);
     }
     
-    // 7. Process each invoice row
-    const log = [];
-    let updatedCount = 0;
-    
-    // Find source data columns
-    const sourceHeaders = sourceData[0];
-    const clientColumnIndex = sourceHeaders.findIndex(header => 
-      header.toString().toLowerCase().includes('client') || 
-      header.toString().toLowerCase().includes('nume'));
-    const valueColumnIndex = sourceHeaders.indexOf('Suma in EUR');
-    
-    if (clientColumnIndex === -1 || valueColumnIndex === -1) {
-      throw new Error('Required columns not found in invoice sheet. Need "Client"/"Nume Client" and "Suma in EUR"');
-    }
-    
-    // Process each row
-    let skippedCount = 0;
+    // Prepare entries for batch processing
+    const entries = [];
     for (let i = 1; i < sourceData.length; i++) {
-      const progress = Math.round((i / (sourceData.length - 1)) * 100);
-      const timeElapsed = Math.round((new Date() - startTime) / 1000);
-      
-      // Update progress dialog
-      updateProgressInfo({
-        progress: progress,
-        status: `Processing ${sourceData[i][clientColumnIndex]}...`,
-        stats: {
-          processed: i,
-          matches: updatedCount,
-          time: timeElapsed
-        }
-      });
-      
       const invoiceClient = sourceData[i][clientColumnIndex];
       const invoiceValue = sourceData[i][valueColumnIndex];
       
       if (!invoiceClient || !invoiceValue) continue;
       
-      // Check if already matched
-      const matchedCell = sourceSheet.getRange(i + 1, matchedColumnIndex);
-      const existingMatch = matchedCell.getValue();
-      
-      if (existingMatch) {
-        console.log(`[${requestId}] Skipping already matched row ${i + 1}: ${invoiceClient}`);
-        skippedCount++;
-        continue;
-      }
-      
-      // Pre-request logging
-      console.log(`[${requestId}] Processing client match request:`, {
+      entries.push({
+        row: i,
         invoiceClient,
-        plClientsCount: plClients.length,
-        timestamp: new Date().toISOString()
+        invoiceValue
+      });
+    }
+    
+    // Process in batches of 10
+    const BATCH_SIZE = 10;
+    const batches = [];
+    for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+      batches.push(entries.slice(i, i + BATCH_SIZE));
+    }
+    
+    const context = {
+      claude,
+      plClients,
+      sourceSheet,
+      revenuesSheet,
+      targetColumnIndex,
+      matchedColumnIndex,
+      requestId,
+      month
+    };
+    
+    let processedCount = 0;
+    let matchedCount = 0;
+    let skippedCount = 0;
+    const log = [];
+    
+    // Process each batch
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      const batchStartTime = new Date();
+      
+      // Update progress
+      const progress = Math.round((batchIndex * BATCH_SIZE / entries.length) * 100);
+      const timeElapsed = Math.round((new Date() - startTime) / 1000);
+      
+      updateProgressInfo({
+        progress,
+        status: `Processing batch ${batchIndex + 1}/${batches.length}...`,
+        stats: {
+          processed: processedCount,
+          matches: matchedCount,
+          time: timeElapsed
+        },
+        currentBatch: {
+          index: batchIndex + 1,
+          total: batches.length,
+          size: batch.length
+        }
       });
       
-      const matchStartTime = new Date();
-      // Find matching client in P&L
-      const match = claude.matchClient(invoiceClient, plClients);
-      const matchProcessingTime = new Date() - matchStartTime;
+      // Process batch
+      const results = await processBatch(batch, context);
       
-      // Post-response logging
-      console.log(`[${requestId}] Client match response:`, {
-        matched: match.matched,
-        confidence: match.confidence,
-        processingTime: matchProcessingTime,
-        timestamp: new Date().toISOString(),
-        requestStatus: match.matched ? 'success' : 'no_match'
+      // Update counts and logs
+      results.forEach(result => {
+        processedCount++;
+        if (result.skipped) {
+          skippedCount++;
+        } else if (result.matched) {
+          matchedCount++;
+          log.push(result);
+        }
       });
       
-      if (match.matched && match.confidence > 0.8) {
-        const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;
-        const newValue = currentValue + Number(invoiceValue);
-        
-        // Update P&L
-        revenuesSheet.getRange(match.lineNumber, targetColumnIndex).setValue(newValue);
-        
-        // Update source sheet with match reference
-        const cellRef = `${columnToLetter(targetColumnIndex)}${match.lineNumber}`;
-        matchedCell.setValue(cellRef);
-        matchedCell.setBackground(COLORS.MATCHED);
-        
-        // Create structured log entry
-        log.push({
-          timestamp: new Date(),
-          requestId,
-          invoiceClient,
-          plClient: plClients[match.lineNumber - 1].name,
-          value: invoiceValue,
-          oldValue: currentValue,
-          newValue: newValue,
-          confidence: match.confidence,
-          month,
-          processingTime: matchProcessingTime,
-          plReference: cellRef
-        });
-        
-        updatedCount++;
-      } else {
-        // Mark as unmatched
-        matchedCell.setBackground(COLORS.UNMATCHED);
-      }
-      
-      // Add a small delay between requests to avoid rate limiting
-      if (i < sourceData.length - 1) {
-        Utilities.sleep(200);
+      // Delay between batches
+      if (batchIndex < batches.length - 1) {
+        Utilities.sleep(500); // Longer delay between batches
       }
     }
     
@@ -376,7 +432,7 @@ function startPLReconciliation(month, plUrl) {
     // Final execution log
     console.log(`[${requestId}] Reconciliation completed:`, {
       processedEntries: sourceData.length - 1,
-      updatedEntries: updatedCount,
+      updatedEntries: matchedCount,
       totalProcessingTime,
       timestamp: new Date().toISOString()
     });
@@ -385,7 +441,7 @@ function startPLReconciliation(month, plUrl) {
     const message = `Reconciliation completed:\n` +
                    `- Processed ${sourceData.length - 1} invoice entries\n` +
                    `- Skipped ${skippedCount} already matched entries\n` +
-                   `- Updated ${updatedCount} P&L entries\n` +
+                   `- Updated ${matchedCount} P&L entries\n` +
                    `- Total processing time: ${totalProcessingTime}ms\n` +
                    `- Request ID: ${requestId}\n` +
                    `- Check 'Reconciliation Log' sheet for details`;
