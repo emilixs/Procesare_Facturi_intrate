@@ -1,27 +1,14 @@
 /**
- * Starts the P&L reconciliation process
- * @param {string} month - Reference month (e.g., "January")
- * @param {string} plUrl - URL of the P&L spreadsheet
- * @returns {Object} Result of the reconciliation process
+ * Match invoice client with P&L clients
+ * @param {string} invoiceClient 
+ * @param {Array<{name: string, line: number}>} plClients 
  */
-function startPLReconciliation(month, plUrl) {
-  try {
-    // Extract spreadsheet ID from URL
-    const plFileId = plUrl.match(/[-\w]{25,}/);
-    if (!plFileId) {
-      throw new Error('Invalid P&L spreadsheet URL');
-    }
-    
-    // Initial setup and validation will go here
-    // This is a placeholder for now - we'll implement the full logic next
-    
-    return {
-      success: true,
-      message: 'Reconciliation process started'
-    };
-    
-  } catch (error) {
-    console.error('Error in P&L reconciliation:', error);
-    throw new Error('Failed to start reconciliation: ' + error.message);
+function findMatchingClient(invoiceClient, plClients) {
+  const claude = getClaudeService();
+  const result = claude.matchClient(invoiceClient, plClients);
+  
+  if (result.matched && result.confidence > 0.8) {
+    return result.lineNumber;
   }
+  return null;
 } 
