@@ -19,7 +19,7 @@ function convertHeaderColumnsToNumbers(data, headerRow = 0) {
   // Get header row and find indices of numeric columns
   const headers = data[headerRow];
   const numericColumnIndices = numericColumns.map(colName => headers.indexOf(colName))
-    .filter(index => index !== -1);
+    .filter(index => index !== -1 && index <= 16); // Only process columns up to Q (index 16)
   
   // Process all rows except header
   for (let i = headerRow + 1; i < data.length; i++) {

@@ -29,6 +29,9 @@ Located in the Google Sheets menu bar, provides access to all invoice processing
 - Total
 - CursValutar (Exchange Rate)
 
+**Limitations:**
+- Only processes columns up to column Q to preserve formulas in later columns
+
 **Input:** Raw invoice data with text/string formatted numbers
 **Output:** Processed data with properly formatted numbers in specified columns
 
