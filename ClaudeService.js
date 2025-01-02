@@ -84,7 +84,7 @@ Reply only with a JSON object in this format:
         },
         muteHttpExceptions: true,
         payload: JSON.stringify({
-          model: "claude-3-sonnet-20241022",
+          model: "claude-3-5-sonnet-latest",
           max_tokens: 4000,
           temperature: 0,
           system: "You are a helpful assistant that matches company names. You only respond with JSON.",
