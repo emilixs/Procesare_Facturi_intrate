@@ -48,13 +48,24 @@ function processInvoiceData() {
   try {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getActiveSheet();
-    const data = sheet.getDataRange().getValues();
+    const range = sheet.getDataRange();
+    const data = range.getValues();
+    const formulas = range.getFormulas(); // Get the formulas
     
     // Process the data
     const processedData = convertHeaderColumnsToNumbers(data);
     
+    // Restore formulas for columns after Q
+    for (let i = 0; i < processedData.length; i++) {
+      for (let j = 17; j < processedData[i].length; j++) { // Start from column R (index 17)
+        if (formulas[i][j]) { // If there was a formula
+          processedData[i][j] = formulas[i][j]; // Restore it
+        }
+      }
+    }
+    
     // Write back to sheet
-    sheet.getDataRange().setValues(processedData);
+    range.setValues(processedData);
     
     // Notify user
     SpreadsheetApp.getUi().alert('Success', 'Numeric columns have been processed successfully!', SpreadsheetApp.getUi().ButtonSet.OK);

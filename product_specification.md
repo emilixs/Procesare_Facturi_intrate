@@ -41,6 +41,7 @@ Located in the Google Sheets menu bar, provides access to all invoice processing
 - Handles empty cells and invalid numbers (converts to 0)
 - Preserves negative numbers
 - Processes only non-header rows
+- Preserves formulas in columns after Q (column R onwards)
 
 **Error Handling:**
 - Invalid numbers are converted to 0
