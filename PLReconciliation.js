@@ -287,6 +287,21 @@ function startPLReconciliation(month, plUrl) {
     const sourceSheet = SpreadsheetApp.getActiveSheet();
     const sourceData = sourceSheet.getDataRange().getValues();
     
+    // Find required columns
+    const sourceHeaders = sourceData[0];
+    const clientColumnIndex = sourceHeaders.findIndex(header => 
+      String(header).toLowerCase().includes('client') || 
+      String(header).toLowerCase().includes('nume'));
+    const valueColumnIndex = sourceHeaders.findIndex(header =>
+      String(header).toLowerCase() === 'suma in eur');
+    
+    if (clientColumnIndex === -1) {
+      throw new Error('Could not find client column (should contain "Client" or "Nume")');
+    }
+    if (valueColumnIndex === -1) {
+      throw new Error('Could not find "Suma in EUR" column');
+    }
+    
     // 2. Ensure Matched P&L column exists
     const matchedColumnIndex = ensureMatchedColumn(sourceSheet);
     
