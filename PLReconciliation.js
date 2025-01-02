@@ -189,11 +189,8 @@ function updateProgressInfo(data) {
 
 /**
  * Process a batch of invoice entries
- * @param {Array} batch Array of entries to process
- * @param {Object} context Processing context and resources
- * @returns {Promise<Array>} Processing results
  */
-async function processBatch(batch, context) {
+function processBatch(batch, context) {
   const {
     claude,
     plClients,
@@ -403,7 +400,7 @@ function startPLReconciliation(month, plUrl) {
       });
       
       // Process batch
-      const results = await processBatch(batch, context);
+      const results = processBatch(batch, context);
       
       // Update counts and logs
       results.forEach(result => {
