@@ -52,6 +52,9 @@ function processInvoiceData() {
     const data = range.getValues();
     const formulas = range.getFormulas(); // Get the formulas
     
+    // Initialize Claude service once
+    const claude = getClaudeService();
+    
     // Process the data
     const processedData = convertHeaderColumnsToNumbers(data);
     

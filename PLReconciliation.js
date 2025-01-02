@@ -5,6 +5,9 @@
  */
 function startPLReconciliation(month, plUrl) {
   try {
+    // Initialize Claude service once
+    const claude = getClaudeService();
+    
     // 1. Get source (invoice) data
     const sourceSheet = SpreadsheetApp.getActiveSheet();
     const sourceData = sourceSheet.getDataRange().getValues();
@@ -37,17 +40,35 @@ function startPLReconciliation(month, plUrl) {
       }))
       .filter(client => client.name); // Remove empty rows
     
-    // 5. Process each invoice row
+    // 5. Create or get log sheet early
+    let logSheet = sourceSheet.getParent().getSheetByName('Reconciliation Log');
+    if (!logSheet) {
+      logSheet = sourceSheet.getParent().insertSheet('Reconciliation Log');
+      logSheet.appendRow([
+        'Timestamp',
+        'Invoice Client',
+        'P&L Client',
+        'Value Added',
+        'Previous Value',
+        'New Value',
+        'Confidence',
+        'Month'
+      ]);
+    }
+    
+    // 6. Process each invoice row
     const log = [];
     let updatedCount = 0;
     
     // Find source data columns
     const sourceHeaders = sourceData[0];
-    const clientColumnIndex = sourceHeaders.indexOf('Client');
+    const clientColumnIndex = sourceHeaders.findIndex(header => 
+      header.toString().toLowerCase().includes('client') || 
+      header.toString().toLowerCase().includes('nume'));
     const valueColumnIndex = sourceHeaders.indexOf('Suma in EUR');
     
     if (clientColumnIndex === -1 || valueColumnIndex === -1) {
-      throw new Error('Required columns not found in invoice sheet');
+      throw new Error('Required columns not found in invoice sheet. Need "Client"/"Nume Client" and "Suma in EUR"');
     }
     
     // Process each row
@@ -58,13 +79,12 @@ function startPLReconciliation(month, plUrl) {
       if (!invoiceClient || !invoiceValue) continue;
       
       // Find matching client in P&L
-      const claude = getClaudeService();
       const match = claude.matchClient(invoiceClient, plClients);
       
       if (match.matched && match.confidence > 0.8) {
         // Get current value from P&L
         const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;
-        const newValue = currentValue + invoiceValue;
+        const newValue = currentValue + Number(invoiceValue); // Ensure numeric addition
         
         // Update P&L
         revenuesSheet.getRange(match.lineNumber, targetColumnIndex).setValue(newValue);
@@ -81,22 +101,6 @@ function startPLReconciliation(month, plUrl) {
         
         updatedCount++;
       }
-    }
-    
-    // 6. Create log sheet if doesn't exist
-    let logSheet = sourceSheet.getParent().getSheetByName('Reconciliation Log');
-    if (!logSheet) {
-      logSheet = sourceSheet.getParent().insertSheet('Reconciliation Log');
-      logSheet.appendRow([
-        'Timestamp',
-        'Invoice Client',
-        'P&L Client',
-        'Value Added',
-        'Previous Value',
-        'New Value',
-        'Confidence',
-        'Month'
-      ]);
     }
     
     // Add log entries
