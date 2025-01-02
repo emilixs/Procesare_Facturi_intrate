@@ -14,81 +14,224 @@ function onOpen() {
  */
 function showPLReconciliationDialog() {
   const html = HtmlService.createTemplate(`
-    <style>
-      .form-group { margin-bottom: 15px; }
-      label { display: block; margin-bottom: 5px; }
-      input { width: 100%; padding: 5px; }
-      .error { color: red; display: none; }
-      button { padding: 8px 15px; }
-    </style>
-    
-    <div class="form-group">
-      <label for="month">Reference Month:</label>
-      <input type="text" id="month" name="month" required placeholder="e.g., January">
-      <div id="monthError" class="error">Please enter a valid month</div>
-    </div>
-    
-    <div class="form-group">
-      <label for="plUrl">P&L File URL:</label>
-      <input type="text" id="plUrl" name="plUrl" required placeholder="Paste Google Sheets URL here">
-      <div id="urlError" class="error">Please enter a valid Google Sheets URL</div>
-    </div>
-    
-    <div class="form-group">
-      <button onclick="submitForm()">Start Reconciliation</button>
-    </div>
-    
-    <script>
-      function validateMonth(month) {
-        const months = ['january', 'february', 'march', 'april', 'may', 'june', 
-                       'july', 'august', 'september', 'october', 'november', 'december'];
-        return months.includes(month.toLowerCase());
-      }
-      
-      function validateUrl(url) {
-        return url.includes('docs.google.com/spreadsheets');
-      }
-      
-      function submitForm() {
-        const month = document.getElementById('month').value;
-        const plUrl = document.getElementById('plUrl').value;
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <base target="_top">
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+            margin: 0;
+          }
+          
+          .container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
+          
+          .form-group {
+            margin-bottom: 20px;
+          }
+          
+          .title {
+            color: #1a73e8;
+            margin-bottom: 25px;
+            font-size: 20px;
+            font-weight: 500;
+            text-align: center;
+          }
+          
+          label {
+            display: block;
+            margin-bottom: 8px;
+            color: #202124;
+            font-weight: 500;
+            font-size: 14px;
+          }
+          
+          input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #dadce0;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+          }
+          
+          input:focus {
+            outline: none;
+            border-color: #1a73e8;
+          }
+          
+          .error {
+            color: #d93025;
+            font-size: 12px;
+            margin-top: 4px;
+            display: none;
+          }
+          
+          button {
+            background-color: #1a73e8;
+            color: white;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            width: 100%;
+            transition: background-color 0.2s;
+          }
+          
+          button:hover {
+            background-color: #1557b0;
+          }
+          
+          button:disabled {
+            background-color: #dadce0;
+            cursor: not-allowed;
+          }
+          
+          .loading {
+            display: none;
+            text-align: center;
+            margin-top: 10px;
+            color: #5f6368;
+            font-size: 13px;
+          }
+          
+          .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #dadce0;
+            border-top: 2px solid #1a73e8;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+          }
+          
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+          
+          .info-text {
+            color: #5f6368;
+            font-size: 12px;
+            margin-top: 4px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="title">P&L Reconciliation</div>
+          
+          <div class="form-group">
+            <label for="month">Reference Month</label>
+            <input type="text" id="month" name="month" required 
+                   placeholder="e.g., January" autocomplete="off">
+            <div id="monthError" class="error">Please enter a valid month</div>
+            <div class="info-text">Enter the full month name (e.g., January, February)</div>
+          </div>
+          
+          <div class="form-group">
+            <label for="plUrl">P&L File URL</label>
+            <input type="text" id="plUrl" name="plUrl" required 
+                   placeholder="https://docs.google.com/spreadsheets/d/..." autocomplete="off">
+            <div id="urlError" class="error">Please enter a valid Google Sheets URL</div>
+            <div class="info-text">Paste the full URL of your P&L Google Sheet</div>
+          </div>
+          
+          <button onclick="submitForm()" id="submitBtn">Start Reconciliation</button>
+          
+          <div id="loading" class="loading">
+            <div class="spinner"></div>
+            Processing reconciliation...
+          </div>
+        </div>
         
-        document.getElementById('monthError').style.display = 'none';
-        document.getElementById('urlError').style.display = 'none';
-        
-        let isValid = true;
-        
-        if (!validateMonth(month)) {
-          document.getElementById('monthError').style.display = 'block';
-          isValid = false;
-        }
-        
-        if (!validateUrl(plUrl)) {
-          document.getElementById('urlError').style.display = 'block';
-          isValid = false;
-        }
-        
-        if (isValid) {
-          google.script.run
-            .withSuccessHandler(onSuccess)
-            .withFailureHandler(onFailure)
-            .startPLReconciliation(month, plUrl);
-        }
-      }
-      
-      function onSuccess(result) {
-        google.script.host.close();
-      }
-      
-      function onFailure(error) {
-        alert('Error: ' + error.message);
-      }
-    </script>
+        <script>
+          // Validate input as user types
+          document.getElementById('month').addEventListener('input', function(e) {
+            validateInput();
+          });
+          
+          document.getElementById('plUrl').addEventListener('input', function(e) {
+            validateInput();
+          });
+          
+          function validateMonth(month) {
+            const months = ['january', 'february', 'march', 'april', 'may', 'june', 
+                          'july', 'august', 'september', 'october', 'november', 'december'];
+            return months.includes(month.toLowerCase().trim());
+          }
+          
+          function validateUrl(url) {
+            return url.trim().includes('docs.google.com/spreadsheets');
+          }
+          
+          function validateInput() {
+            const month = document.getElementById('month').value;
+            const plUrl = document.getElementById('plUrl').value;
+            const submitBtn = document.getElementById('submitBtn');
+            
+            const isMonthValid = validateMonth(month);
+            const isUrlValid = validateUrl(plUrl);
+            
+            document.getElementById('monthError').style.display = 
+              month && !isMonthValid ? 'block' : 'none';
+            document.getElementById('urlError').style.display = 
+              plUrl && !isUrlValid ? 'block' : 'none';
+              
+            submitBtn.disabled = !(isMonthValid && isUrlValid);
+          }
+          
+          function submitForm() {
+            const month = document.getElementById('month').value;
+            const plUrl = document.getElementById('plUrl').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
+            
+            if (validateMonth(month) && validateUrl(plUrl)) {
+              // Show loading state
+              submitBtn.disabled = true;
+              loading.style.display = 'block';
+              
+              google.script.run
+                .withSuccessHandler(onSuccess)
+                .withFailureHandler(onFailure)
+                .startPLReconciliation(month.trim(), plUrl.trim());
+            }
+          }
+          
+          function onSuccess(result) {
+            google.script.host.close();
+          }
+          
+          function onFailure(error) {
+            // Reset loading state
+            document.getElementById('submitBtn').disabled = false;
+            document.getElementById('loading').style.display = 'none';
+            
+            // Show error
+            const errorMessage = error.message || 'An unexpected error occurred';
+            alert('Error: ' + errorMessage);
+          }
+        </script>
+      </body>
+    </html>
   `);
   
   const userInterface = html.evaluate()
-    .setWidth(400)
-    .setHeight(300)
+    .setWidth(450)
+    .setHeight(500)
     .setTitle('P&L Reconciliation');
     
   SpreadsheetApp.getUi().showModalDialog(userInterface, 'P&L Reconciliation');
