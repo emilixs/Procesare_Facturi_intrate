@@ -13,7 +13,7 @@ function onOpen() {
  * Shows the P&L reconciliation dialog
  */
 function showPLReconciliationDialog() {
-  const html = HtmlService.createHtmlTemplate(`
+  const html = HtmlService.createTemplate(`
     <style>
       .form-group { margin-bottom: 15px; }
       label { display: block; margin-bottom: 5px; }
