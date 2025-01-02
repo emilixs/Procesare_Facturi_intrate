@@ -5,7 +5,7 @@
 function createClaudeService() {
   return {
     apiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
-    endpoint: 'https://api.anthropic.com/v1/complete',
+    endpoint: 'https://api.anthropic.com/v1/messages',
     
     /**
      * Compare a client name from invoice with P&L client list
@@ -78,15 +78,16 @@ Reply only with a JSON object in this format:
       const options = {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'x-api-key': this.apiKey,
           'Content-Type': 'application/json',
-          'anthropic-version': '2024-10-22'
+          'anthropic-version': '2023-06-01'
         },
         muteHttpExceptions: true,
         payload: JSON.stringify({
           model: "claude-3-sonnet-20241022",
           max_tokens: 4000,
           temperature: 0,
+          system: "You are a helpful assistant that matches company names. You only respond with JSON.",
           messages: [
             {
               role: "user",
@@ -110,16 +111,19 @@ Reply only with a JSON object in this format:
         throw error;
       }
 
-      const parsedResponse = JSON.parse(responseBody);
-      if (!parsedResponse.content) {
-        const error = new Error('Invalid response format from Claude API');
-        error.details = {
-          response: parsedResponse
-        };
-        throw error;
+      try {
+        const parsedResponse = JSON.parse(responseBody);
+        if (!parsedResponse.content || !parsedResponse.content[0] || !parsedResponse.content[0].text) {
+          throw new Error('Invalid response structure');
+        }
+        return parsedResponse.content[0].text;
+      } catch (parseError) {
+        console.error('Response parsing error:', {
+          error: parseError.message,
+          responseBody: responseBody
+        });
+        throw parseError;
       }
-
-      return parsedResponse.content[0].text;
     }
   };
 }
