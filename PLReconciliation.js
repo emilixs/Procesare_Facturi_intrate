@@ -4,6 +4,9 @@
  * @param {string} plUrl URL of the P&L spreadsheet
  */
 function startPLReconciliation(month, plUrl) {
+  const startTime = new Date();
+  const requestId = Utilities.getUuid();
+  
   try {
     // Initialize Claude service once
     const claude = getClaudeService();
@@ -40,19 +43,22 @@ function startPLReconciliation(month, plUrl) {
       }))
       .filter(client => client.name); // Remove empty rows
     
-    // 5. Create or get log sheet early
+    // 5. Create or get log sheet early with updated headers
     let logSheet = sourceSheet.getParent().getSheetByName('Reconciliation Log');
     if (!logSheet) {
       logSheet = sourceSheet.getParent().insertSheet('Reconciliation Log');
       logSheet.appendRow([
         'Timestamp',
+        'Request ID',
+        'Operation',
         'Invoice Client',
         'P&L Client',
         'Value Added',
         'Previous Value',
         'New Value',
-        'Confidence',
-        'Month'
+        'Match Confidence',
+        'Month',
+        'Processing Time (ms)'
       ]);
     }
     
@@ -78,25 +84,45 @@ function startPLReconciliation(month, plUrl) {
       
       if (!invoiceClient || !invoiceValue) continue;
       
+      // Pre-request logging
+      console.log(`[${requestId}] Processing client match request:`, {
+        invoiceClient,
+        plClientsCount: plClients.length,
+        timestamp: new Date().toISOString()
+      });
+      
+      const matchStartTime = new Date();
       // Find matching client in P&L
       const match = claude.matchClient(invoiceClient, plClients);
+      const matchProcessingTime = new Date() - matchStartTime;
+      
+      // Post-response logging
+      console.log(`[${requestId}] Client match response:`, {
+        matched: match.matched,
+        confidence: match.confidence,
+        processingTime: matchProcessingTime,
+        timestamp: new Date().toISOString()
+      });
       
       if (match.matched && match.confidence > 0.8) {
-        // Get current value from P&L
         const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;
-        const newValue = currentValue + Number(invoiceValue); // Ensure numeric addition
+        const newValue = currentValue + Number(invoiceValue);
         
         // Update P&L
         revenuesSheet.getRange(match.lineNumber, targetColumnIndex).setValue(newValue);
         
-        // Log the update
+        // Create structured log entry
         log.push({
+          timestamp: new Date(),
+          requestId,
           invoiceClient,
           plClient: plClients[match.lineNumber - 1].name,
           value: invoiceValue,
           oldValue: currentValue,
           newValue: newValue,
-          confidence: match.confidence
+          confidence: match.confidence,
+          month,
+          processingTime: matchProcessingTime
         });
         
         updatedCount++;
@@ -105,28 +131,70 @@ function startPLReconciliation(month, plUrl) {
     
     // Add log entries
     log.forEach(entry => {
-      logSheet.appendRow([
-        new Date(),
-        entry.invoiceClient,
-        entry.plClient,
-        entry.value,
-        entry.oldValue,
-        entry.newValue,
-        entry.confidence,
-        month
-      ]);
+      logSheet.appendRow(createLogEntry(entry));
+    });
+    
+    const totalProcessingTime = new Date() - startTime;
+    
+    // Final execution log
+    console.log(`[${requestId}] Reconciliation completed:`, {
+      processedEntries: sourceData.length - 1,
+      updatedEntries: updatedCount,
+      totalProcessingTime,
+      timestamp: new Date().toISOString()
     });
     
     // Show summary to user
     const message = `Reconciliation completed:\n` +
                    `- Processed ${sourceData.length - 1} invoice entries\n` +
                    `- Updated ${updatedCount} P&L entries\n` +
+                   `- Total processing time: ${totalProcessingTime}ms\n` +
+                   `- Request ID: ${requestId}\n` +
                    `- Check 'Reconciliation Log' sheet for details`;
                    
     SpreadsheetApp.getUi().alert('Success', message, SpreadsheetApp.getUi().ButtonSet.OK);
     
   } catch (error) {
-    console.error('Reconciliation error:', error);
+    // Error logging
+    console.error(`[${requestId}] Reconciliation error:`, {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      processingTime: new Date() - startTime
+    });
+    
     SpreadsheetApp.getUi().alert('Error', error.message, SpreadsheetApp.getUi().ButtonSet.OK);
   }
+}
+
+/**
+ * Creates a structured log entry
+ * @param {Object} params Log parameters
+ * @returns {Array} Formatted log row
+ */
+function createLogEntry({
+  timestamp,
+  invoiceClient,
+  plClient,
+  value,
+  oldValue,
+  newValue,
+  confidence,
+  month,
+  requestId,
+  processingTime
+}) {
+  return [
+    timestamp,
+    requestId,
+    'Client Match',
+    invoiceClient,
+    plClient,
+    value,
+    oldValue,
+    newValue,
+    confidence,
+    month,
+    processingTime
+  ];
 } 
