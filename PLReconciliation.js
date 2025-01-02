@@ -8,7 +8,17 @@ function showProgressDialog() {
       <head>
         <base target="_top">
         <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
+          body { 
+            font-family: Arial, sans-serif; 
+            padding: 20px;
+            background-color: #f8f9fa;
+          }
+          .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          }
           .progress-bar {
             width: 100%;
             height: 4px;
@@ -22,21 +32,40 @@ function showProgressDialog() {
             background-color: #1a73e8;
             width: 0%;
             transition: width 0.3s ease;
+            animation: pulse 2s infinite;
           }
-          .status { color: #5f6368; margin-top: 10px; }
-          .stats { margin-top: 20px; }
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+          }
+          .status { 
+            color: #5f6368; 
+            margin-top: 10px;
+            font-size: 14px;
+          }
+          .stats { 
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 13px;
+          }
         </style>
       </head>
       <body>
-        <div class="progress-bar">
-          <div class="progress-fill" id="progressBar"></div>
+        <div class="container">
+          <div class="progress-bar">
+            <div class="progress-fill" id="progressBar"></div>
+          </div>
+          <div class="status" id="status">Initializing...</div>
+          <div class="stats" id="stats"></div>
         </div>
-        <div class="status" id="status">Initializing...</div>
-        <div class="stats" id="stats"></div>
         
         <script>
-          window.onmessage = function(e) {
-            const data = e.data;
+          let width = 0;
+          
+          function updateProgress(data) {
             if (data.progress) {
               document.getElementById('progressBar').style.width = data.progress + '%';
             }
@@ -45,22 +74,35 @@ function showProgressDialog() {
             }
             if (data.stats) {
               document.getElementById('stats').textContent = 
-                'Processed: ' + data.processed + 
-                ' | Matches: ' + data.matches +
-                ' | Time: ' + data.time + 's';
+                'Processed: ' + data.stats.processed + 
+                ' | Matches: ' + data.stats.matches +
+                ' | Time: ' + data.stats.time + 's';
             }
-          };
+          }
+          
+          // Auto-increment progress bar for visual feedback
+          setInterval(() => {
+            if (width < 90) {
+              width += 0.5;
+              document.getElementById('progressBar').style.width = width + '%';
+            }
+          }, 500);
         </script>
       </body>
     </html>
   `);
   
-  const userInterface = html.evaluate()
+  return html.evaluate()
     .setWidth(400)
-    .setHeight(150)
+    .setHeight(180)
     .setTitle('P&L Reconciliation Progress');
-    
-  return userInterface;
+}
+
+/**
+ * Updates the progress information
+ */
+function updateProgressInfo(data) {
+  PropertiesService.getScriptProperties().setProperty('progress_data', JSON.stringify(data));
 }
 
 /**
@@ -72,7 +114,7 @@ function startPLReconciliation(month, plUrl) {
   // Show progress dialog
   const progressDialog = showProgressDialog();
   const ui = SpreadsheetApp.getUi();
-  const htmlOutput = ui.showModelessDialog(progressDialog, 'Processing...');
+  ui.showModelessDialog(progressDialog, 'Processing...');
   
   const startTime = new Date();
   const requestId = Utilities.getUuid();
@@ -157,7 +199,7 @@ function startPLReconciliation(month, plUrl) {
       const timeElapsed = Math.round((new Date() - startTime) / 1000);
       
       // Update progress dialog
-      htmlOutput.getDialogWindow().postMessage({
+      updateProgressInfo({
         progress: progress,
         status: `Processing ${sourceData[i][clientColumnIndex]}...`,
         stats: {
@@ -165,7 +207,7 @@ function startPLReconciliation(month, plUrl) {
           matches: updatedCount,
           time: timeElapsed
         }
-      }, '*');
+      });
       
       const invoiceClient = sourceData[i][clientColumnIndex];
       const invoiceValue = sourceData[i][valueColumnIndex];
@@ -311,14 +353,6 @@ function createLogEntry({
     month,
     processingTime
   ];
-}
-
-/**
- * Updates the progress dialog
- * @param {Object} data Progress data
- */
-function updateProgress(data) {
-  return data; // This function exists just to be called from the client side
 }
 
 /**
