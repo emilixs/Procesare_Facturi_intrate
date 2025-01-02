@@ -124,6 +124,33 @@ Located in the Google Sheets menu bar, provides access to all invoice processing
 - Dependent on Claude AI availability
 - Processing time may vary with data volume
 
+**Source File Tracking:**
+- Column 'Matched P&L' (Column S):
+  - Automatically added if not present
+  - Records matching status and P&L cell references
+  - Visual status indicators:
+    - Green: Successfully matched entries with P&L cell reference (e.g., "AX12")
+    - Gray: Unmatched entries (empty cell)
+
+**Processing Logic:**
+1. Pre-processing:
+   - Check for 'Matched P&L' column, create if missing
+   - Initialize color coding for visual tracking
+
+2. Row Processing:
+   - Skip rows that have existing matches (non-empty 'Matched P&L' cells)
+   - Process only unmatched or empty entries
+   - Update status after processing:
+     - Matched: Green background + P&L cell reference
+     - Unmatched: Gray background + empty cell
+
+**Benefits:**
+- Prevents duplicate processing
+- Visual tracking of reconciliation status
+- Clear audit trail with exact P&L cell references
+- Easy identification of unmatched entries
+- Efficient processing by skipping already matched entries
+
 ## Technical Requirements
 - Platform: Google Apps Script
 - Input Format: Google Sheets data

@@ -15,7 +15,10 @@ function startPLReconciliation(month, plUrl) {
     const sourceSheet = SpreadsheetApp.getActiveSheet();
     const sourceData = sourceSheet.getDataRange().getValues();
     
-    // 2. Open P&L spreadsheet
+    // 2. Ensure Matched P&L column exists
+    const matchedColumnIndex = ensureMatchedColumn(sourceSheet);
+    
+    // 3. Open P&L spreadsheet
     const plFileId = plUrl.match(/[-\w]{25,}/)[0];
     const plSpreadsheet = SpreadsheetApp.openById(plFileId);
     const revenuesSheet = plSpreadsheet.getSheetByName('revenues');
@@ -24,7 +27,7 @@ function startPLReconciliation(month, plUrl) {
       throw new Error('Could not find "revenues" sheet in P&L file');
     }
     
-    // 3. Find target column in P&L (e.g., "January real")
+    // 4. Find target column in P&L (e.g., "January real")
     const plHeaders = revenuesSheet.getRange(2, 1, 1, revenuesSheet.getLastColumn()).getValues()[0];
     const targetColumnName = `${month.toLowerCase()} real`;
     const targetColumnIndex = plHeaders.findIndex(header => 
@@ -34,7 +37,7 @@ function startPLReconciliation(month, plUrl) {
       throw new Error(`Could not find column "${month} real" in P&L`);
     }
     
-    // 4. Get P&L client list from column D
+    // 5. Get P&L client list from column D
     const plClients = revenuesSheet.getRange('D:D')
       .getValues()
       .map((row, index) => ({
@@ -43,7 +46,7 @@ function startPLReconciliation(month, plUrl) {
       }))
       .filter(client => client.name); // Remove empty rows
     
-    // 5. Create or get log sheet early with updated headers
+    // 6. Create or get log sheet early with updated headers
     let logSheet = sourceSheet.getParent().getSheetByName('Reconciliation Log');
     if (!logSheet) {
       logSheet = sourceSheet.getParent().insertSheet('Reconciliation Log');
@@ -62,7 +65,7 @@ function startPLReconciliation(month, plUrl) {
       ]);
     }
     
-    // 6. Process each invoice row
+    // 7. Process each invoice row
     const log = [];
     let updatedCount = 0;
     
@@ -77,7 +80,8 @@ function startPLReconciliation(month, plUrl) {
       throw new Error('Required columns not found in invoice sheet. Need "Client"/"Nume Client" and "Suma in EUR"');
     }
     
-    // Update progress periodically
+    // Process each row
+    let skippedCount = 0;
     for (let i = 1; i < sourceData.length; i++) {
       const progress = Math.round((i / (sourceData.length - 1)) * 100);
       const timeElapsed = Math.round((new Date() - startTime) / 1000);
@@ -95,6 +99,16 @@ function startPLReconciliation(month, plUrl) {
       const invoiceValue = sourceData[i][valueColumnIndex];
       
       if (!invoiceClient || !invoiceValue) continue;
+      
+      // Check if already matched
+      const matchedCell = sourceSheet.getRange(i + 1, matchedColumnIndex);
+      const existingMatch = matchedCell.getValue();
+      
+      if (existingMatch) {
+        console.log(`[${requestId}] Skipping already matched row ${i + 1}: ${invoiceClient}`);
+        skippedCount++;
+        continue;
+      }
       
       // Pre-request logging
       console.log(`[${requestId}] Processing client match request:`, {
@@ -117,17 +131,17 @@ function startPLReconciliation(month, plUrl) {
         requestStatus: match.matched ? 'success' : 'no_match'
       });
       
-      // Add a small delay between requests to avoid rate limiting
-      if (i < sourceData.length - 1) {
-        Utilities.sleep(200); // 200ms delay between requests
-      }
-      
       if (match.matched && match.confidence > 0.8) {
         const currentValue = revenuesSheet.getRange(match.lineNumber, targetColumnIndex).getValue() || 0;
         const newValue = currentValue + Number(invoiceValue);
         
         // Update P&L
         revenuesSheet.getRange(match.lineNumber, targetColumnIndex).setValue(newValue);
+        
+        // Update source sheet with match reference
+        const cellRef = `${columnToLetter(targetColumnIndex)}${match.lineNumber}`;
+        matchedCell.setValue(cellRef);
+        matchedCell.setBackground(COLORS.MATCHED);
         
         // Create structured log entry
         log.push({
@@ -140,10 +154,19 @@ function startPLReconciliation(month, plUrl) {
           newValue: newValue,
           confidence: match.confidence,
           month,
-          processingTime: matchProcessingTime
+          processingTime: matchProcessingTime,
+          plReference: cellRef
         });
         
         updatedCount++;
+      } else {
+        // Mark as unmatched
+        matchedCell.setBackground(COLORS.UNMATCHED);
+      }
+      
+      // Add a small delay between requests to avoid rate limiting
+      if (i < sourceData.length - 1) {
+        Utilities.sleep(200);
       }
     }
     
@@ -165,6 +188,7 @@ function startPLReconciliation(month, plUrl) {
     // Show summary to user
     const message = `Reconciliation completed:\n` +
                    `- Processed ${sourceData.length - 1} invoice entries\n` +
+                   `- Skipped ${skippedCount} already matched entries\n` +
                    `- Updated ${updatedCount} P&L entries\n` +
                    `- Total processing time: ${totalProcessingTime}ms\n` +
                    `- Request ID: ${requestId}\n` +
@@ -433,4 +457,45 @@ function showProgressDialog(title) {
  */
 function updateProgress(data) {
   return data; // This function exists just to be called from the client side
-} 
+}
+
+/**
+ * Convert column number to letter reference (e.g., 1 -> A, 27 -> AA)
+ * @param {number} column Column number (1-based)
+ * @returns {string} Column letter reference
+ */
+function columnToLetter(column) {
+  let temp, letter = '';
+  while (column > 0) {
+    temp = (column - 1) % 26;
+    letter = String.fromCharCode(temp + 65) + letter;
+    column = (column - temp - 1) / 26;
+  }
+  return letter;
+}
+
+/**
+ * Ensures the Matched P&L column exists and returns its index
+ * @param {GoogleAppsScript.Spreadsheet.Sheet} sheet Source sheet
+ * @returns {number} Column index (1-based)
+ */
+function ensureMatchedColumn(sheet) {
+  const lastColumn = sheet.getLastColumn();
+  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
+  const matchedColumnIndex = headers.indexOf('Matched P&L');
+  
+  if (matchedColumnIndex === -1) {
+    // Add new column if it doesn't exist
+    const newColumnIndex = lastColumn + 1;
+    sheet.getRange(1, newColumnIndex).setValue('Matched P&L');
+    return newColumnIndex;
+  }
+  
+  return matchedColumnIndex + 1; // Convert to 1-based index
+}
+
+// Define color constants
+const COLORS = {
+  MATCHED: '#b7e1cd',    // Light green
+  UNMATCHED: '#eaecef'   // Light gray
+}; 
