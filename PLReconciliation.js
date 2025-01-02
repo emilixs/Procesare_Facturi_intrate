@@ -202,8 +202,12 @@ function processBatch(batch, context) {
     month
   } = context;
   
+  console.log(`[${requestId}] Processing batch of ${batch.length} entries`);
+  const batchStartTime = new Date();
+  
   const results = [];
   
+  // Process each entry in the batch
   for (const entry of batch) {
     const { row, invoiceClient, invoiceValue } = entry;
     
@@ -259,10 +263,14 @@ function processBatch(batch, context) {
       matchedCell.setBackground(COLORS.UNMATCHED);
       results.push({ matched: false, row });
     }
-    
-    // Small delay between items in batch
-    Utilities.sleep(200);
   }
+  
+  console.log(`[${requestId}] Batch completed:`, {
+    processed: results.length,
+    matches: results.filter(r => r.matched).length,
+    skipped: results.filter(r => r.skipped).length,
+    processingTime: new Date() - batchStartTime
+  });
   
   return results;
 }
@@ -526,18 +534,20 @@ function columnToLetter(column) {
  * @returns {number} Column index (1-based)
  */
 function ensureMatchedColumn(sheet) {
-  const lastColumn = sheet.getLastColumn();
-  const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-  const matchedColumnIndex = headers.indexOf('Matched P&L');
+  const MATCHED_COLUMN_INDEX = 19; // Column S is the 19th column
+  const HEADER_NAME = 'Matched P&L';
   
-  if (matchedColumnIndex === -1) {
-    // Add new column if it doesn't exist
-    const newColumnIndex = lastColumn + 1;
-    sheet.getRange(1, newColumnIndex).setValue('Matched P&L');
-    return newColumnIndex;
+  // Get the current header in column S
+  const currentHeader = sheet.getRange(1, MATCHED_COLUMN_INDEX).getValue();
+  console.log('Current header in column S:', currentHeader);
+  
+  // If column S doesn't have "Matched P&L", set it
+  if (currentHeader !== HEADER_NAME) {
+    console.log('Setting header in column S to:', HEADER_NAME);
+    sheet.getRange(1, MATCHED_COLUMN_INDEX).setValue(HEADER_NAME);
   }
   
-  return matchedColumnIndex + 1; // Convert to 1-based index
+  return MATCHED_COLUMN_INDEX; // Always return column S index
 }
 
 // Define color constants
