@@ -1,9 +1,79 @@
 /**
+ * Shows a progress dialog
+ */
+function showProgressDialog() {
+  const html = HtmlService.createTemplate(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <base target="_top">
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          .progress-bar {
+            width: 100%;
+            height: 4px;
+            background-color: #e8eaed;
+            margin: 20px 0;
+            border-radius: 2px;
+            overflow: hidden;
+          }
+          .progress-fill {
+            height: 100%;
+            background-color: #1a73e8;
+            width: 0%;
+            transition: width 0.3s ease;
+          }
+          .status { color: #5f6368; margin-top: 10px; }
+          .stats { margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressBar"></div>
+        </div>
+        <div class="status" id="status">Initializing...</div>
+        <div class="stats" id="stats"></div>
+        
+        <script>
+          window.onmessage = function(e) {
+            const data = e.data;
+            if (data.progress) {
+              document.getElementById('progressBar').style.width = data.progress + '%';
+            }
+            if (data.status) {
+              document.getElementById('status').textContent = data.status;
+            }
+            if (data.stats) {
+              document.getElementById('stats').textContent = 
+                'Processed: ' + data.processed + 
+                ' | Matches: ' + data.matches +
+                ' | Time: ' + data.time + 's';
+            }
+          };
+        </script>
+      </body>
+    </html>
+  `);
+  
+  const userInterface = html.evaluate()
+    .setWidth(400)
+    .setHeight(150)
+    .setTitle('P&L Reconciliation Progress');
+    
+  return userInterface;
+}
+
+/**
  * Starts the P&L reconciliation process
  * @param {string} month Reference month (e.g., "January")
  * @param {string} plUrl URL of the P&L spreadsheet
  */
 function startPLReconciliation(month, plUrl) {
+  // Show progress dialog
+  const progressDialog = showProgressDialog();
+  const ui = SpreadsheetApp.getUi();
+  const htmlOutput = ui.showModelessDialog(progressDialog, 'Processing...');
+  
   const startTime = new Date();
   const requestId = Utilities.getUuid();
   
@@ -87,13 +157,15 @@ function startPLReconciliation(month, plUrl) {
       const timeElapsed = Math.round((new Date() - startTime) / 1000);
       
       // Update progress dialog
-      google.script.run.withSuccessHandler(function() {}).updateProgress({
+      htmlOutput.getDialogWindow().postMessage({
         progress: progress,
         status: `Processing ${sourceData[i][clientColumnIndex]}...`,
-        processed: i,
-        matches: updatedCount,
-        time: timeElapsed
-      });
+        stats: {
+          processed: i,
+          matches: updatedCount,
+          time: timeElapsed
+        }
+      }, '*');
       
       const invoiceClient = sourceData[i][clientColumnIndex];
       const invoiceValue = sourceData[i][valueColumnIndex];
@@ -239,216 +311,6 @@ function createLogEntry({
     month,
     processingTime
   ];
-}
-
-/**
- * Shows a progress dialog
- * @param {string} title The dialog title
- * @returns {google.script.html.HtmlOutput} The dialog
- */
-function showProgressDialog(title) {
-  const html = HtmlService.createTemplate(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <base target="_top">
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            background-color: #f8f9fa;
-            margin: 0;
-          }
-          
-          .container {
-            background-color: white;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-          }
-          
-          .title {
-            color: #1a73e8;
-            margin-bottom: 20px;
-            font-size: 18px;
-            font-weight: 500;
-          }
-          
-          .progress-container {
-            margin: 20px 0;
-          }
-          
-          .progress-bar {
-            width: 100%;
-            height: 4px;
-            background-color: #e8eaed;
-            border-radius: 2px;
-            overflow: hidden;
-          }
-          
-          .progress-fill {
-            height: 100%;
-            background-color: #1a73e8;
-            width: 0%;
-            transition: width 0.3s ease;
-            animation: pulse 2s infinite;
-          }
-          
-          @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-          }
-          
-          .status {
-            margin-top: 15px;
-            color: #5f6368;
-            font-size: 14px;
-          }
-          
-          .stats {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            font-size: 13px;
-          }
-          
-          .stat-item {
-            margin: 8px 0;
-            display: flex;
-            justify-content: space-between;
-          }
-          
-          .stat-label {
-            color: #5f6368;
-          }
-          
-          .stat-value {
-            color: #1a73e8;
-            font-weight: 500;
-          }
-          
-          .tips {
-            margin-top: 20px;
-            font-size: 13px;
-            color: #5f6368;
-            font-style: italic;
-          }
-          
-          .tip {
-            margin: 8px 0;
-            padding-left: 20px;
-            position: relative;
-          }
-          
-          .tip:before {
-            content: "💡";
-            position: absolute;
-            left: 0;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="title"><?= title ?></div>
-          
-          <div class="progress-container">
-            <div class="progress-bar">
-              <div class="progress-fill" id="progressBar"></div>
-            </div>
-            <div class="status" id="status">Initializing...</div>
-          </div>
-          
-          <div class="stats">
-            <div class="stat-item">
-              <span class="stat-label">Processed:</span>
-              <span class="stat-value" id="processed">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Matches Found:</span>
-              <span class="stat-value" id="matches">0</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-label">Processing Time:</span>
-              <span class="stat-value" id="time">0s</span>
-            </div>
-          </div>
-          
-          <div class="tips">
-            <div class="tip" id="tip">Did you know? The AI model considers various company name formats and abbreviations.</div>
-          </div>
-        </div>
-        
-        <script>
-          const tips = [
-            "The AI model considers various company name formats and abbreviations.",
-            "All changes are automatically logged for future reference.",
-            "High confidence matches (>0.8) are automatically processed.",
-            "The system handles different currency formats and decimal separators.",
-            "Each update is verified before being applied to the P&L.",
-            "You can find detailed logs in the 'Reconciliation Log' sheet."
-          ];
-          
-          let tipIndex = 0;
-          
-          function updateProgress(data) {
-            const progressBar = document.getElementById('progressBar');
-            const status = document.getElementById('status');
-            const processed = document.getElementById('processed');
-            const matches = document.getElementById('matches');
-            const time = document.getElementById('time');
-            const tip = document.getElementById('tip');
-            
-            if (data.progress) {
-              progressBar.style.width = data.progress + '%';
-            }
-            
-            if (data.status) {
-              status.textContent = data.status;
-            }
-            
-            if (data.processed) {
-              processed.textContent = data.processed;
-            }
-            
-            if (data.matches) {
-              matches.textContent = data.matches;
-            }
-            
-            if (data.time) {
-              time.textContent = data.time + 's';
-            }
-            
-            // Rotate tips every 5 seconds
-            tipIndex = (tipIndex + 1) % tips.length;
-            tip.textContent = tips[tipIndex];
-          }
-          
-          // Update tips every 5 seconds
-          setInterval(() => {
-            const tip = document.getElementById('tip');
-            tipIndex = (tipIndex + 1) % tips.length;
-            tip.textContent = tips[tipIndex];
-          }, 5000);
-          
-          // Simulate progress bar movement
-          let width = 0;
-          setInterval(() => {
-            if (width < 90) { // Never reach 100% until actually complete
-              width += 0.5;
-              document.getElementById('progressBar').style.width = width + '%';
-            }
-          }, 500);
-        </script>
-      </body>
-    </html>
-  `);
-  
-  html.title = title;
-  return html.evaluate()
-    .setWidth(450)
-    .setHeight(400);
 }
 
 /**
