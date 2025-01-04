@@ -4,6 +4,7 @@
  */
 function createClaudeService() {
   // Initialize or get the log sheet
+  /*
   function getLogSheet() {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     let sheet = ss.getSheetByName('LLM_Logs');
@@ -21,6 +22,7 @@ function createClaudeService() {
     const timestamp = new Date().toISOString();
     logSheet.appendRow([timestamp, request, response]);
   }
+  */
 
   return {
     apiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
@@ -137,8 +139,8 @@ Reply only with a JSON object in this format:
         console.log(llmResponse);
         console.log("=== END RESPONSE ===\n");
 
-        // Save to log sheet
-        logToSheet(prompt, llmResponse);
+        // Comment out sheet logging
+        // logToSheet(prompt, llmResponse);
 
         return llmResponse;
       } catch (parseError) {
