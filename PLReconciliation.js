@@ -236,15 +236,9 @@ Remember: It's better to find a correct match with medium confidence than miss a
 
       // Add detailed logging for first transaction
       if (entry.supplier === sourceSpreadsheet.getActiveSheet().getRange("B2").getValue()) {
-        console.log("\n=== FULL PROMPT FOR FIRST TRANSACTION ===");
-        console.log("Supplier:", entry.supplier);
-        console.log("\nComplete Prompt:");
+        console.log("\n=== LLM INTERACTION ===");
+        console.log("\nPrompt sent to LLM:");
         console.log(prompt);
-        console.log("\nPotential Matches:");
-        allPotentialMatches.forEach(match => {
-          console.log(`${match.reference}: ${match.text}`);
-        });
-        console.log("=== END OF FIRST TRANSACTION LOGGING ===\n");
       }
 
       const claude = getClaudeService();
@@ -252,6 +246,13 @@ Remember: It's better to find a correct match with medium confidence than miss a
         name: match.text,
         line: match.rowIndex
       })));
+
+      // Log LLM response for first transaction
+      if (entry.supplier === sourceSpreadsheet.getActiveSheet().getRange("B2").getValue()) {
+        console.log("\nResponse received from LLM:");
+        console.log(JSON.stringify(matchResult, null, 2));
+        console.log("=== END LLM INTERACTION ===\n");
+      }
 
       // Log match result
       logEvent('match_attempt', {
