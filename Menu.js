@@ -226,7 +226,7 @@ function startPLReconciliation(month, plUrl) {
   
   try {
     const service = createPLReconciliationService(plUrl, month);
-    return service.processReconciliation(true); // true for test mode
+    return service.processReconciliation(false); // Changed to false for full mode
   } catch (error) {
     console.error('Error in startPLReconciliation:', error);
     throw error;
