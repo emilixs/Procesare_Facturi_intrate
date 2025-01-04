@@ -18,6 +18,12 @@ function createClaudeService() {
         throw new Error('Anthropic API key not found in Script Properties');
       }
 
+      // Validate the plClients array
+      if (!Array.isArray(plClients) || plClients.some(c => !c.name || !c.line)) {
+        console.error('Invalid plClients format:', JSON.stringify(plClients));
+        throw new Error('Invalid P&L clients data structure');
+      }
+
       const prompt = `
 Compare this invoice client name: "${invoiceClient}"
 with these P&L client names:
@@ -36,6 +42,9 @@ Reply only with a JSON object in this format:
 }`;
 
       try {
+        // Log the plClients data for debugging
+        console.log('P&L Clients:', JSON.stringify(plClients));
+        
         const response = this.callClaude(prompt);
         return JSON.parse(response);
       } catch (error) {
