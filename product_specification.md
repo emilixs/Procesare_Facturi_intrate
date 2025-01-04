@@ -39,6 +39,7 @@ Processes and standardizes numeric values in invoice headers, converting various
 14. Status
 15. Suma in EUR
 16. Matched P&L
+17. EUR/RON
 
 #### Processing Features
 - Removes currency symbols
@@ -76,17 +77,19 @@ Handles the reconciliation of invoice data with P&L entries across Expenses and 
 #### Data Processing
 - Source File Column Usage:
   - Column B (Furnizor): Supplier name for matching
-  - Column F (Suma): Amount to be added
+  - Column O (Suma in EUR): Amount to be added for reconciliation
   - Column P (Matched P&L): Match status tracking
 
 - Target Sheets:
   1. Expenses Sheet:
      - Match Column: C (Furnizor)
      - Update Column: "{month} real"
+     - Amount Added: EUR value from source Column O
   
   2. Staffing Sheet:
      - Match Column: D (Partener)
      - Update Column: "{month} real"
+     - Amount Added: EUR value from source Column O
 
 ### 2.3 ClaudeService.js
 #### Purpose
@@ -125,7 +128,7 @@ Manages all LLM (Claude) interactions for supplier matching.
 12. Uploadat de
 13. Centru de cost
 14. Status
-15. Suma in EUR
+15. Suma in EUR (used as primary amount for P&L reconciliation)
 16. Matched P&L
 17. EUR/RON
 
@@ -150,9 +153,11 @@ Manages all LLM (Claude) interactions for supplier matching.
    - Update status tracking
 
 ### 4.2 Amount Handling
+- Uses EUR amounts from Column O (Suma in EUR)
 - Adds to existing amounts (not replace)
 - Validates numeric values
 - Updates in corresponding month column
+- All reconciliation is done in EUR currency
 
 ### 4.3 Match Processing
 - LLM-powered supplier name matching
