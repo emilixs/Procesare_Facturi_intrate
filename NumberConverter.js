@@ -1,44 +1,71 @@
 /**
- * Converts specified numeric columns in the invoice data to standardized number format
- * @param {Array[][]} data The raw data from the spreadsheet
- * @param {number} headerRow The row number where the header is located (0-based)
- * @return {Array[][]} The processed data with numeric columns converted
+ * Converts header columns containing numbers to standardized number format
+ * @param {Array} data - The spreadsheet data
+ * @param {number} headerRow - The row containing headers (default: 0)
+ * @returns {Array} - The processed data
  */
 function convertHeaderColumnsToNumbers(data, headerRow = 0) {
-  // Define the specific columns to be converted
-  const numericColumns = [
-    'Suma TVA',    // Column E
-    'Suma',        // Column F
-    'Suma ramasa'  // Column G
-  ];
-  
-  // Get header row and find indices of numeric columns
-  const headers = data[headerRow];
-  const numericColumnIndices = numericColumns.map(colName => headers.indexOf(colName))
-    .filter(index => index !== -1);
-  
-  // Process all rows except header
-  for (let i = headerRow + 1; i < data.length; i++) {
-    for (const colIndex of numericColumnIndices) {
-      const value = data[i][colIndex];
-      if (value !== null && value !== undefined && value !== '') {
-        // Remove currency symbols, spaces, and standardize decimal separator
-        const cleanValue = String(value)
-          .replace(/[^\d,.-]/g, '')  // Remove any character that's not a digit, comma, dot, or minus
-          .replace(/\s/g, '')        // Remove spaces
-          .replace(/,/g, '.');       // Replace commas with dots for standardization
-        
-        // Convert to number, default to 0 if conversion fails
-        const numericValue = Number(cleanValue);
-        data[i][colIndex] = isNaN(numericValue) ? 0 : numericValue;
-      } else {
-        // Set empty/null values to 0
-        data[i][colIndex] = 0;
-      }
+  // Define columns to process (only up to column N)
+  const columnsToProcess = {
+    'E': 'Suma TVA',
+    'F': 'Suma',
+    'G': 'Suma ramasa'
+  };
+
+  // Get column indices
+  const columnIndices = {};
+  data[headerRow].forEach((header, index) => {
+    if (index <= 13) { // Only process up to column N (index 13)
+      const headerText = header.toString().trim();
+      Object.entries(columnsToProcess).forEach(([col, name]) => {
+        if (headerText === name) {
+          columnIndices[col] = index;
+        }
+      });
     }
+  });
+
+  // Process each row
+  return data.map((row, rowIndex) => {
+    if (rowIndex === headerRow) return row;
+
+    // Create a new row array
+    return row.map((cell, colIndex) => {
+      // Only process if column is in our list and is before column O
+      if (colIndex <= 13 && Object.values(columnIndices).includes(colIndex)) {
+        return convertToNumber(cell);
+      }
+      return cell; // Return unchanged for other columns
+    });
+  });
+}
+
+/**
+ * Converts a value to a standardized number format
+ * @private
+ */
+function convertToNumber(value) {
+  if (typeof value === 'number') return value;
+  if (!value) return 0;
+
+  // Convert to string and clean up
+  let strValue = value.toString()
+    .replace(/[^\d.,\-]/g, '') // Remove all except digits, dots, commas and minus
+    .trim();
+
+  if (!strValue) return 0;
+
+  // Handle European format (1.234,56)
+  if (strValue.includes(',') && strValue.includes('.')) {
+    strValue = strValue.replace(/\./g, '').replace(',', '.');
   }
-  
-  return data;
+  // Handle simple comma as decimal separator
+  else if (strValue.includes(',')) {
+    strValue = strValue.replace(',', '.');
+  }
+
+  const number = parseFloat(strValue);
+  return isNaN(number) ? 0 : number;
 }
 
 /**
@@ -61,11 +88,10 @@ function processInvoiceData() {
     // Notify user
     SpreadsheetApp.getUi().alert(
       'Success', 
-      'Numeric columns (Suma TVA, Suma, Suma ramasa) have been processed successfully!', 
+      'Numeric columns have been processed successfully! Formulas after column N were preserved.', 
       SpreadsheetApp.getUi().ButtonSet.OK
     );
   } catch (error) {
-    // Log error for debugging
     console.error('Error in processInvoiceData:', error);
     
     // Notify user of error
