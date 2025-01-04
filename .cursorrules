@@ -48,6 +48,72 @@
         "*.gs"
       ],
       "style": "google"
+    },
+    "dataStructures": {
+      "interfaceConsistency": {
+        "validateInterfaces": {
+          "description": "Ensure data structure consistency across service boundaries",
+          "requirements": [
+            "Match interface documentation with actual implementation",
+            "Use consistent property names throughout the codebase",
+            "Validate data structures at service boundaries",
+            "Document expected data structures in JSDoc"
+          ],
+          "error": "Data structure mismatch detected at service boundary"
+        },
+        "referenceHandling": {
+          "description": "Maintain consistent reference formats",
+          "requirements": [
+            "Use exact references without manipulation",
+            "Document reference format requirements",
+            "Validate reference formats before processing"
+          ],
+          "error": "Invalid reference format detected"
+        }
+      },
+      "validation": {
+        "checkpoints": [
+          "Service entry points",
+          "Data transformations",
+          "External service calls",
+          "Response processing"
+        ],
+        "requirements": {
+          "dataFlow": "Document and validate each step of data transformation",
+          "errorHandling": "Include data structure details in error messages",
+          "testing": "Verify data structure integrity with small datasets first"
+        }
+      }
+    },
+    "documentation": {
+      "interfaces": {
+        "required": [
+          "Parameter types and structures",
+          "Return value formats",
+          "Example usage with complex structures",
+          "Validation requirements"
+        ],
+        "format": "JSDoc with TypeScript-style type definitions"
+      }
+    },
+    "errorHandling": {
+      "messages": {
+        "requirements": [
+          "Specific and actionable error messages",
+          "Include relevant data structure in errors",
+          "Log actual vs expected structure on validation fails"
+        ]
+      }
+    },
+    "testing": {
+      "dataStructures": {
+        "requirements": [
+          "Test with minimal valid dataset",
+          "Test with edge cases",
+          "Verify structure at each transformation",
+          "Log intermediate states for complex flows"
+        ]
+      }
     }
   },
   "standards": {
@@ -71,6 +137,11 @@
       "patterns": {
         "preferred": "factory functions",
         "avoid": "ES6 classes"
+      },
+      "naming": {
+        "properties": "Consistent across related objects",
+        "references": "Follow established patterns",
+        "validation": "Clear indication of requirements"
       }
     },
     "logging": {
@@ -100,6 +171,13 @@
         ]
       },
       "retention": "30 days"
+    },
+    "documentation": {
+      "dataStructures": {
+        "format": "TypeScript-style interface definitions",
+        "examples": "Include for complex structures",
+        "validation": "Document all requirements"
+      }
     }
   }
 } 
