@@ -235,7 +235,10 @@ Remember: It's better to find a correct match with medium confidence than miss a
         allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
 
       const claude = getClaudeService();
-      const matchResult = claude.matchClient(entry.supplier, allPotentialMatches);
+      const matchResult = claude.matchClient(entry.supplier, allPotentialMatches.map(match => ({
+        name: match.text,
+        line: match.rowIndex
+      })));
 
       // Log match result
       logEvent('match_attempt', {
@@ -425,7 +428,10 @@ Remember: It's better to find a correct match with medium confidence than miss a
         potentialMatches.map(m => `${m.reference}: ${m.text}`));
 
       const claude = getClaudeService();
-      const matchResult = claude.matchClient(entry.supplier, potentialMatches);
+      const matchResult = claude.matchClient(entry.supplier, potentialMatches.map(match => ({
+        name: match.text,
+        line: match.rowIndex
+      })));
 
       // Log match result with essential info
       logEvent('match_attempt', {
