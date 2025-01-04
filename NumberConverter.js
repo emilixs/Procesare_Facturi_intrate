@@ -1,38 +1,39 @@
 /**
- * Converts specified columns in the invoice header to number format
+ * Converts specified numeric columns in the invoice data to standardized number format
  * @param {Array[][]} data The raw data from the spreadsheet
  * @param {number} headerRow The row number where the header is located (0-based)
  * @return {Array[][]} The processed data with numeric columns converted
  */
 function convertHeaderColumnsToNumbers(data, headerRow = 0) {
-  // Columns to be converted to numbers
+  // Define the specific columns to be converted
   const numericColumns = [
-    'Suma incasata',
-    'Incasata prin',
-    'Suma ramasa de incasat',
-    'Valoare',
-    'TVA',
-    'Total',
-    'CursValutar'
+    'Suma TVA',    // Column E
+    'Suma',        // Column F
+    'Suma ramasa'  // Column G
   ];
   
   // Get header row and find indices of numeric columns
   const headers = data[headerRow];
   const numericColumnIndices = numericColumns.map(colName => headers.indexOf(colName))
-    .filter(index => index !== -1 && index <= 16); // Only process columns up to Q (index 16)
+    .filter(index => index !== -1);
   
   // Process all rows except header
   for (let i = headerRow + 1; i < data.length; i++) {
     for (const colIndex of numericColumnIndices) {
       const value = data[i][colIndex];
       if (value !== null && value !== undefined && value !== '') {
-        // Remove any currency symbols, spaces, and convert commas to dots
+        // Remove currency symbols, spaces, and standardize decimal separator
         const cleanValue = String(value)
           .replace(/[^\d,.-]/g, '')  // Remove any character that's not a digit, comma, dot, or minus
-          .replace(/,/g, '.');       // Replace commas with dots
+          .replace(/\s/g, '')        // Remove spaces
+          .replace(/,/g, '.');       // Replace commas with dots for standardization
         
-        // Convert to number
-        data[i][colIndex] = Number(cleanValue) || 0;
+        // Convert to number, default to 0 if conversion fails
+        const numericValue = Number(cleanValue);
+        data[i][colIndex] = isNaN(numericValue) ? 0 : numericValue;
+      } else {
+        // Set empty/null values to 0
+        data[i][colIndex] = 0;
       }
     }
   }
@@ -50,29 +51,38 @@ function processInvoiceData() {
     const sheet = ss.getActiveSheet();
     const range = sheet.getDataRange();
     const data = range.getValues();
-    const formulas = range.getFormulas(); // Get the formulas
-    
-    // Initialize Claude service once
-    const claude = getClaudeService();
     
     // Process the data
     const processedData = convertHeaderColumnsToNumbers(data);
-    
-    // Restore formulas for columns after Q
-    for (let i = 0; i < processedData.length; i++) {
-      for (let j = 17; j < processedData[i].length; j++) { // Start from column R (index 17)
-        if (formulas[i][j]) { // If there was a formula
-          processedData[i][j] = formulas[i][j]; // Restore it
-        }
-      }
-    }
     
     // Write back to sheet
     range.setValues(processedData);
     
     // Notify user
-    SpreadsheetApp.getUi().alert('Success', 'Numeric columns have been processed successfully!', SpreadsheetApp.getUi().ButtonSet.OK);
+    SpreadsheetApp.getUi().alert(
+      'Success', 
+      'Numeric columns (Suma TVA, Suma, Suma ramasa) have been processed successfully!', 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
   } catch (error) {
-    SpreadsheetApp.getUi().alert('Error', 'An error occurred: ' + error.message, SpreadsheetApp.getUi().ButtonSet.OK);
+    // Log error for debugging
+    console.error('Error in processInvoiceData:', error);
+    
+    // Notify user of error
+    SpreadsheetApp.getUi().alert(
+      'Error', 
+      'An error occurred while processing numeric columns: ' + error.message, 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
   }
+}
+
+/**
+ * Adds a menu item to trigger the invoice processing
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Invoice Processing')
+    .addItem('Convert Numeric Columns', 'processInvoiceData')
+    .addToUi();
 } 

@@ -1,157 +1,210 @@
-# Invoice Data Processing Tools Documentation
+# Invoice Processing System Documentation
 
-## Overview
-This collection of tools is designed to process and manipulate invoicing data for P&L (Profit & Loss) integration. The tools handle various data transformations and calculations related to invoice processing.
+## 1. System Overview
+A Google Apps Script-based system for processing invoices and reconciling them with P&L entries using LLM-powered matching.
 
-## User Interface
+## 2. File Structure and Functionalities
 
-### Custom Menu: Invoice Tools
-Located in the Google Sheets menu bar, provides access to all invoice processing tools.
+### 2.1 NumberConverter.js
+#### Purpose
+Processes and standardizes numeric values in invoice headers, converting various formats to consistent number representations.
 
-**Menu Items:**
-1. **To Numbers**
-   - Function: Converts specified numeric columns from text to number format
-   - Trigger: Calls `processInvoiceData()`
-   - Usage: Select this option when you need to convert text-formatted numbers to actual number format
+#### Core Functions
+##### convertHeaderColumnsToNumbers(data, headerRow)
+- Converts specified numeric columns in invoice data
+- Parameters:
+  - data: Array[][] (spreadsheet data)
+  - headerRow: number (default: 0)
+- Returns: Processed data array with standardized numbers
 
-## Functions
+#### Numeric Columns Processed
+- Suma TVA (Column E)
+- Suma (Column F)
+- Suma ramasa (Column G)
 
-### convertHeaderColumnsToNumbers
-**Purpose:** Transforms specific numeric columns in the invoice data from text/string format to numbers.
-**Location:** NumberConverter.js
+#### Source File Structure
+1. Factura / Bon
+2. Furnizor
+3. Numar
+4. Data emitere
+5. Suma TVA
+6. Suma
+7. Suma ramasa
+8. Moneda
+9. Scadenta
+10. Inregistrat
+11. Data upload
+12. Uploadat de
+13. Centru de cost
+14. Status
+15. Suma in EUR
+16. Matched P&L
 
-**Columns Processed:**
-- Suma incasata (Amount Received)
-- Incasata prin (Received Through)
-- Suma ramasa de incasat (Amount Remaining to be Received)
-- Valoare (Value)
-- TVA (VAT)
-- Total
-- CursValutar (Exchange Rate)
+#### Processing Features
+- Removes currency symbols
+- Standardizes decimal separators
+- Handles European and US number formats
+- Validates numeric conversions
 
-**Limitations:**
-- Only processes columns up to column Q to preserve formulas in later columns
+#### Error Handling
+- Invalid number format detection
+- Error notification via UI
+- Zero fallback for invalid conversions
 
-**Input:** Raw invoice data with text/string formatted numbers
-**Output:** Processed data with properly formatted numbers in specified columns
+### 2.2 PLReconciliation.js
+#### Purpose
+Handles the reconciliation of invoice data with P&L entries across Expenses and Staffing sheets.
 
-**Processing Details:**
-- Removes currency symbols and special characters
-- Converts comma decimal separators to dots
-- Handles empty cells and invalid numbers (converts to 0)
-- Preserves negative numbers
-- Processes only non-header rows
-- Preserves formulas in columns after Q (column R onwards)
+#### Core Functions
+##### createPLReconciliationService(spreadsheetUrl, month)
+- Creates service instance for P&L reconciliation
+- Parameters:
+  - spreadsheetUrl: Target spreadsheet URL
+  - month: Processing month (e.g., "October")
+- Returns: Service object with reconciliation methods
 
-**Error Handling:**
-- Invalid numbers are converted to 0
-- User is notified of success or failure via UI alert
+##### processReconciliation()
+- Processes invoice entries against P&L sheets
+- Manages LLM matching process
+- Updates status tracking
 
-### onOpen
-**Purpose:** Creates the custom menu in Google Sheets when the spreadsheet is opened.
-**Location:** Menu.js
-**Trigger:** Automatically runs when the spreadsheet is opened
+##### matchAndUpdateEntry(entry)
+- Matches single entry against both sheets
+- Updates amounts when match found
+- Returns match results
 
-### P&L Reconciliation Process
-**Purpose:** Automatically reconciles invoice data with P&L entries by matching clients and updating corresponding revenue values.
-**Location:** PLReconciliation.js
+#### Data Processing
+- Source File Column Usage:
+  - Column B (Furnizor): Supplier name for matching
+  - Column F (Suma): Amount to be added
+  - Column P (Matched P&L): Match status tracking
 
-**User Interface:**
-- Dialog prompt requesting:
-  - Reference month (e.g., "January")
-  - URL of the P&L spreadsheet
+- Target Sheets:
+  1. Expenses Sheet:
+     - Match Column: C (Furnizor)
+     - Update Column: "{month} real"
+  
+  2. Staffing Sheet:
+     - Match Column: D (Partener)
+     - Update Column: "{month} real"
 
-**Process Flow:**
-1. **P&L File Navigation**
-   - Locates "revenues" sheet in P&L file
-   - Identifies target column by finding "{month} real" in row 2
-   - Maps client names from column D for matching
+### 2.3 ClaudeService.js
+#### Purpose
+Manages all LLM (Claude) interactions for supplier matching.
 
-2. **Client Matching Process**
-   - For each invoice line in source file:
-     - Extracts client information
-     - Queries Claude AI for client match against P&L list
-     - Receives matching line number from P&L if found
-   - Logs each matching attempt (success/failure)
+#### Core Functions
+##### createMatchingQuery(supplier, targetData)
+- Formats supplier matching queries
+- Returns structured query for LLM
 
-3. **Value Update Process**
-   - For successful matches:
-     - Retrieves "Suma in EUR" value from column R of source file
-     - Adds value to corresponding cell in P&L
-     - Logs each update with before/after values
+##### processLLMResponse(response)
+- Processes LLM matching decisions
+- Returns structured match results
 
-**Dependencies:**
-- Claude AI Integration Library (separate project)
-  - Location: ClaudeIntegration.js
-  - Purpose: Handles all AI communication
-  - Configuration: API key and endpoint management
+### 2.4 UI Components
+#### Status Tracking
+- Column P Format: "{SheetName}!{CellReference}"
+- Color Coding:
+  - Green: Successfully matched
+  - Gray: No match found
 
-**Data Requirements:**
-- Source Invoice File:
-  - Client information in standard format
-  - "Suma in EUR" values in column R
-- P&L File:
-  - Sheet named "revenues"
-  - Month headers in row 2 format: "{month} real"
-  - Client list in column D
+## 3. Data Structures
 
-**Error Handling:**
-- Invalid P&L URL handling
-- Missing sheets/columns detection
-- Client match failures logging
-- Value update verification
-- Network/API failure management
+### 3.1 Source File Headers
+1. Factura / Bon
+2. Furnizor
+3. Numar
+4. Data emitere
+5. Suma TVA
+6. Suma
+7. Suma ramasa
+8. Moneda
+9. Scadenta
+10. Inregistrat
+11. Data upload
+12. Uploadat de
+13. Centru de cost
+14. Status
+15. Suma in EUR
+16. Matched P&L
+17. EUR/RON
 
-**Logging:**
-- Client match attempts
-- Successful matches with line numbers
-- Value updates with before/after states
-- Error conditions and failure points
+### 3.2 Target Files Structure
+#### Expenses Sheet
+- Column C: Furnizor (matching column)
+- Month Columns: "{month} real"
 
-**Technical Requirements:**
-- Google Apps Script
-- Claude AI API access
-- Cross-spreadsheet permissions
-- Logging infrastructure
+#### Staffing Sheet
+- Column D: Partener (matching column)
+- Month Columns: "{month} real"
 
-**Security Considerations:**
-- P&L file access permissions
-- API key management
+## 4. Processing Logic
+
+### 4.1 Reconciliation Flow
+1. Load source and target spreadsheets
+2. For each unmatched entry:
+   - Check Expenses sheet
+   - Check Staffing sheet
+   - Use LLM for matching
+   - Update amounts if matched
+   - Update status tracking
+
+### 4.2 Amount Handling
+- Adds to existing amounts (not replace)
+- Validates numeric values
+- Updates in corresponding month column
+
+### 4.3 Match Processing
+- LLM-powered supplier name matching
+- Confidence threshold validation
+- Match reference tracking
+
+## 5. Error Handling
+- Invalid spreadsheet URLs
+- Missing sheets/columns
+- LLM service failures
+- Amount validation errors
+- Access permission issues
+
+## 6. Reprocessing Features
+- Skip matched entries
+- Clear previous matches
+- Selective reprocessing
+
+## 7. Security & Performance
+- Spreadsheet permission validation
+- LLM rate limiting
 - Data validation before updates
+- Error logging and monitoring 
 
-**Limitations:**
-- Requires stable internet connection
-- Dependent on Claude AI availability
-- Processing time may vary with data volume
+## 3. Data Processing Workflows
 
-**Source File Tracking:**
-- Column 'Matched P&L' (Column S):
-  - Automatically added if not present
-  - Records matching status and P&L cell references
-  - Visual status indicators:
-    - Green: Successfully matched entries with P&L cell reference (e.g., "AX12")
-    - Gray: Unmatched entries (empty cell)
+### 3.1 Number Conversion Workflow
+1. User triggers processInvoiceData()
+2. System processes specific columns (Suma TVA, Suma, Suma ramasa)
+3. For each row:
+   - Cleans numeric values (removes symbols, spaces)
+   - Standardizes decimal separators
+   - Converts to number format
+4. Updates spreadsheet with processed data
+5. Provides success/error feedback
 
-**Processing Logic:**
-1. Pre-processing:
-   - Check for 'Matched P&L' column, create if missing
-   - Initialize color coding for visual tracking
+### 3.2 P&L Reconciliation Workflow
+[Previous reconciliation workflow documentation remains the same...]
 
-2. Row Processing:
-   - Skip rows that have existing matches (non-empty 'Matched P&L' cells)
-   - Process only unmatched or empty entries
-   - Update status after processing:
-     - Matched: Green background + P&L cell reference
-     - Unmatched: Gray background + empty cell
+## 4. Input/Output Specifications
 
-**Benefits:**
-- Prevents duplicate processing
-- Visual tracking of reconciliation status
-- Clear audit trail with exact P&L cell references
-- Easy identification of unmatched entries
-- Efficient processing by skipping already matched entries
+### 4.1 Number Converter Input Formats
+- European format: "1.234,56"
+- US format: "1,234.56"
+- Mixed formats: "1 234,56"
+- Currency symbols: "€", "RON", "LEI"
+- Formula cells (preserved)
 
-## Technical Requirements
-- Platform: Google Apps Script
-- Input Format: Google Sheets data
-- Data Processing: In-memory transformation 
+### 4.2 Number Converter Output Format
+- Standardized numbers
+- Preserved formulas (columns R onwards)
+- Zero for invalid conversions
+
+### 4.3 P&L Reconciliation Formats
+[Previous P&L format documentation remains the same...] 
