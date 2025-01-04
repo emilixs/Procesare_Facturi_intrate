@@ -11,93 +11,245 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   const expensesSheet = targetSpreadsheet.getSheetByName('Expenses');
   const staffingSheet = targetSpreadsheet.getSheetByName('Staffing');
   const monthColumn = `${month} real`;
+  const startTime = new Date();
+
+  // Initialize logging context
+  const loggingContext = {
+    sessionId: Utilities.getUuid(),
+    startTimestamp: startTime.toISOString(),
+    sourceSpreadsheetId: sourceSpreadsheet.getId(),
+    targetSpreadsheetId: targetSpreadsheet.getId(),
+    month: month
+  };
+
+  /**
+   * Log structured data with context
+   * @private
+   */
+  function logEvent(eventType, data) {
+    const logEntry = {
+      ...loggingContext,
+      timestamp: new Date().toISOString(),
+      eventType,
+      processingTime: new Date() - startTime,
+      ...data
+    };
+    console.log(JSON.stringify(logEntry));
+  }
 
   /**
    * Creates a matching query for the LLM
-   * @param {string} supplier - Supplier name to match
-   * @param {Array} targetData - Array of potential matches
-   * @return {string} Formatted query
+   * @private
    */
   function createMatchingQuery(supplier, targetData) {
-    return `Compare "${supplier}" with the following potential matches and determine the best match if any exists:\n${targetData.join('\n')}`;
+    const prompt = `Compare "${supplier}" with the following potential matches and determine the best match if any exists:\n${targetData.join('\n')}`;
+    
+    // Pre-request logging with full prompt
+    logEvent('llm_request_preparation', {
+      supplier,
+      targetDataSize: targetData.length,
+      context: 'supplier_matching',
+      prompt: prompt,
+      targetData: targetData, // Log the actual comparison data
+      timestamp_sent: new Date().toISOString()
+    });
+
+    return prompt;
   }
 
   /**
    * Process LLM response for matching decision
-   * @param {string} response - LLM response
-   * @return {Object} Matching decision
+   * @private
    */
   function processLLMResponse(response) {
-    // Implementation will depend on Claude API integration
-    return {
-      isMatch: false,
-      confidence: 0,
-      matchedEntry: null
-    };
+    try {
+      // Log raw response immediately upon receiving
+      logEvent('llm_response_received', {
+        responseSize: response.length,
+        status: 'success',
+        rawResponse: response,
+        timestamp_received: new Date().toISOString()
+      });
+
+      const result = JSON.parse(response);
+      
+      // Log processed result with full context
+      logEvent('llm_response_processed', {
+        matchFound: result.matched,
+        confidence: result.confidence,
+        parsedResponse: result,
+        processingStatus: 'success'
+      });
+
+      return result;
+    } catch (error) {
+      logEvent('llm_response_error', {
+        error: error.message,
+        stack: error.stack,
+        rawResponse: response,
+        processingStatus: 'failed',
+        errorType: 'parsing_error',
+        timestamp_error: new Date().toISOString()
+      });
+      throw error;
+    }
   }
 
   /**
    * Updates the matched status in the source file
-   * @param {number} row - Row number
-   * @param {Object} matchResult - Match result details
+   * @private
    */
   function updateMatchedStatus(row, matchResult) {
-    const sheet = sourceSpreadsheet.getActiveSheet();
-    const matchedCell = sheet.getRange(row, 16); // Column P
+    logEvent('status_update_start', {
+      row,
+      matchResult: {
+        isMatch: matchResult.isMatch,
+        reference: matchResult.reference
+      }
+    });
 
-    if (matchResult.isMatch) {
-      matchedCell.setValue(matchResult.reference);
-      matchedCell.setBackground('#b7e1cd'); // Green
-    } else {
-      matchedCell.setValue('No match');
-      matchedCell.setBackground('#cccccc'); // Gray
+    try {
+      const sheet = sourceSpreadsheet.getActiveSheet();
+      const matchedCell = sheet.getRange(row, 16); // Column P
+
+      if (matchResult.isMatch) {
+        matchedCell.setValue(matchResult.reference);
+        matchedCell.setBackground('#b7e1cd'); // Green
+      } else {
+        matchedCell.setValue('No match');
+        matchedCell.setBackground('#cccccc'); // Gray
+      }
+
+      logEvent('status_update_complete', {
+        row,
+        success: true
+      });
+    } catch (error) {
+      logEvent('status_update_error', {
+        row,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
     }
   }
 
   /**
    * Matches and updates a single entry
-   * @param {Object} entry - Entry data
-   * @return {Object} Match results
+   * @private
    */
   function matchAndUpdateEntry(entry) {
-    // Check Expenses sheet
-    const expensesMatch = checkSheetForMatch(entry, expensesSheet, 'C', 'Expenses');
-    if (expensesMatch.isMatch) {
-      updateAmount(expensesMatch, entry.amount);
-      return expensesMatch;
-    }
+    logEvent('entry_processing_start', {
+      supplier: entry.supplier,
+      amount: entry.amount,
+      timestamp_start: new Date().toISOString()
+    });
 
-    // Check Staffing sheet
-    const staffingMatch = checkSheetForMatch(entry, staffingSheet, 'D', 'Staffing');
-    if (staffingMatch.isMatch) {
-      updateAmount(staffingMatch, entry.amount);
-      return staffingMatch;
-    }
+    try {
+      // Check Expenses sheet
+      const expensesMatch = checkSheetForMatch(entry, expensesSheet, 'C', 'Expenses');
+      if (expensesMatch.isMatch) {
+        logEvent('match_found', {
+          sheet: 'Expenses',
+          supplier: entry.supplier,
+          matchDetails: expensesMatch,
+          llmPromptUsed: expensesMatch.promptUsed, // Log the prompt that led to this match
+          llmResponse: expensesMatch.rawResponse,   // Log the raw response that led to this match
+          timestamp_match: new Date().toISOString()
+        });
+        updateAmount(expensesMatch, entry.amount);
+        return expensesMatch;
+      }
 
-    return { isMatch: false };
+      // Check Staffing sheet
+      const staffingMatch = checkSheetForMatch(entry, staffingSheet, 'D', 'Staffing');
+      if (staffingMatch.isMatch) {
+        logEvent('match_found', {
+          sheet: 'Staffing',
+          supplier: entry.supplier,
+          matchDetails: staffingMatch,
+          llmPromptUsed: staffingMatch.promptUsed,  // Log the prompt that led to this match
+          llmResponse: staffingMatch.rawResponse,    // Log the raw response that led to this match
+          timestamp_match: new Date().toISOString()
+        });
+        updateAmount(staffingMatch, entry.amount);
+        return staffingMatch;
+      }
+
+      logEvent('no_match_found', {
+        supplier: entry.supplier,
+        lastPromptTried: entry.lastPromptTried,     // Log the last prompt that was tried
+        lastResponseReceived: entry.lastResponse,    // Log the last response that led to no match
+        timestamp_nomatch: new Date().toISOString()
+      });
+      return { isMatch: false };
+    } catch (error) {
+      logEvent('entry_processing_error', {
+        supplier: entry.supplier,
+        error: error.message,
+        stack: error.stack,
+        lastPromptTried: entry.lastPromptTried,     // Log the prompt that caused the error
+        lastResponseReceived: entry.lastResponse,    // Log the response that caused the error
+        timestamp_error: new Date().toISOString()
+      });
+      throw error;
+    }
   }
 
   /**
    * Main reconciliation process
    */
   function processReconciliation() {
-    const sheet = sourceSpreadsheet.getActiveSheet();
-    const data = sheet.getDataRange().getValues();
-    const headerRow = data[0];
+    logEvent('reconciliation_start', {
+      totalRows: sourceSpreadsheet.getActiveSheet().getLastRow() - 1
+    });
 
-    // Process each row starting from row 2
-    for (let i = 1; i < data.length; i++) {
-      const entry = {
-        supplier: data[i][1], // Column B
-        amount: data[i][5],   // Column F
-        isMatched: data[i][15] // Column P
-      };
+    try {
+      const sheet = sourceSpreadsheet.getActiveSheet();
+      const data = sheet.getDataRange().getValues();
+      const headerRow = data[0];
 
-      // Skip if already matched
-      if (entry.isMatched && entry.isMatched !== '') continue;
+      let processedCount = 0;
+      let matchedCount = 0;
 
-      const matchResult = matchAndUpdateEntry(entry);
-      updateMatchedStatus(i + 1, matchResult);
+      // Process each row starting from row 2
+      for (let i = 1; i < data.length; i++) {
+        const entry = {
+          supplier: data[i][1], // Column B
+          amount: data[i][5],   // Column F
+          isMatched: data[i][15] // Column P
+        };
+
+        // Skip if already matched
+        if (entry.isMatched && entry.isMatched !== '') {
+          logEvent('skip_matched_entry', {
+            row: i + 1,
+            supplier: entry.supplier
+          });
+          continue;
+        }
+
+        processedCount++;
+        const matchResult = matchAndUpdateEntry(entry);
+        if (matchResult.isMatch) matchedCount++;
+        updateMatchedStatus(i + 1, matchResult);
+      }
+
+      logEvent('reconciliation_complete', {
+        processedCount,
+        matchedCount,
+        successRate: (matchedCount / processedCount * 100).toFixed(2) + '%'
+      });
+    } catch (error) {
+      logEvent('reconciliation_error', {
+        error: error.message,
+        stack: error.stack,
+        systemState: {
+          month: month,
+          activeSheet: sourceSpreadsheet.getActiveSheet().getName()
+        }
+      });
+      throw error;
     }
   }
 
