@@ -79,28 +79,9 @@ function createPLReconciliationService(spreadsheetUrl, month) {
 
 Task: Find if this company "${supplier}" matches any company in the list below.
 
-Consider these matching scenarios:
-1. Different legal entity formats:
-   - "Company SRL" = "Company S.R.L." = "COMPANY S.R.L"
-   - "Company SA" = "Company S.A." = "COMPANY SA"
-
-2. Common abbreviations and variations:
-   - "International" = "Intl" = "Int."
-   - "Technology" = "Tech" = "Technologies"
-   - "Solutions" = "Sol." = "Sols"
-
-3. Brand names vs legal names:
-   - A company might be listed by its brand name in one place and legal name in another
-   - Example: "Google Cloud" might match "GOOGLE *CLOUD" or "Google LLC"
-
-4. Special characters and formatting:
-   - Ignore spaces, dots, dashes, underscores
-   - Example: "Tech-Soft" = "TechSoft" = "Tech Soft"
-
-5. Context clues:
-   - Consider the business context
-   - Look for unique identifying parts of names
-   - Consider if the entry might be a subdivision or department of a larger company
+When trying to recognize act as a normal human being, and user your brain to understand the contex. 
+The files are used for different purposes so extra information might be added to the company name. 
+Do not consider the company specific denominators as SRL, S.R.L., SA, S.A. as they might or might not be present. 
 
 List of potential matches:
 ${targetData.join('\n')}
