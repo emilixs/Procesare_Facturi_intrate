@@ -1,43 +1,56 @@
 /**
- * Converts header columns containing numbers to standardized number format
- * @param {Array} data - The spreadsheet data
- * @param {number} headerRow - The row containing headers (default: 0)
- * @returns {Array} - The processed data
+ * Main function to process invoice data
+ * Triggered from the menu
  */
-function convertHeaderColumnsToNumbers(data, headerRow = 0) {
-  // Define columns to process (only up to column N)
-  const columnsToProcess = {
-    'E': 'Suma TVA',
-    'F': 'Suma',
-    'G': 'Suma ramasa'
-  };
+function processInvoiceData() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getActiveSheet();
+    
+    // Define the columns to process
+    const columnsToProcess = {
+      'E': 'Suma TVA',
+      'F': 'Suma',
+      'G': 'Suma ramasa'
+    };
 
-  // Get column indices
-  const columnIndices = {};
-  data[headerRow].forEach((header, index) => {
-    if (index <= 13) { // Only process up to column N (index 13)
-      const headerText = header.toString().trim();
-      Object.entries(columnsToProcess).forEach(([col, name]) => {
-        if (headerText === name) {
-          columnIndices[col] = index;
-        }
-      });
-    }
-  });
+    // Get the data for processing
+    const lastRow = sheet.getLastRow();
+    const lastCol = sheet.getLastColumn();
+    const headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
-  // Process each row
-  return data.map((row, rowIndex) => {
-    if (rowIndex === headerRow) return row;
-
-    // Create a new row array
-    return row.map((cell, colIndex) => {
-      // Only process if column is in our list and is before column O
-      if (colIndex <= 13 && Object.values(columnIndices).includes(colIndex)) {
-        return convertToNumber(cell);
+    // Process each column separately
+    Object.entries(columnsToProcess).forEach(([col, name]) => {
+      const colIndex = headers.findIndex(header => header.toString().trim() === name);
+      if (colIndex !== -1) {
+        // Get only the column data
+        const columnRange = sheet.getRange(2, colIndex + 1, lastRow - 1, 1);
+        const columnData = columnRange.getValues();
+        
+        // Process the numbers
+        const processedData = columnData.map(([cell]) => [convertToNumber(cell)]);
+        
+        // Update only this column
+        columnRange.setValues(processedData);
       }
-      return cell; // Return unchanged for other columns
     });
-  });
+    
+    // Notify user
+    SpreadsheetApp.getUi().alert(
+      'Success', 
+      'Numeric columns (Suma TVA, Suma, Suma ramasa) have been processed successfully! All other columns were preserved.', 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  } catch (error) {
+    console.error('Error in processInvoiceData:', error);
+    
+    // Notify user of error
+    SpreadsheetApp.getUi().alert(
+      'Error', 
+      'An error occurred while processing numeric columns: ' + error.message, 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  }
 }
 
 /**
@@ -66,39 +79,4 @@ function convertToNumber(value) {
 
   const number = parseFloat(strValue);
   return isNaN(number) ? 0 : number;
-}
-
-/**
- * Main function to process invoice data
- * Triggered from the menu
- */
-function processInvoiceData() {
-  try {
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getActiveSheet();
-    const range = sheet.getDataRange();
-    const data = range.getValues();
-    
-    // Process the data
-    const processedData = convertHeaderColumnsToNumbers(data);
-    
-    // Write back to sheet
-    range.setValues(processedData);
-    
-    // Notify user
-    SpreadsheetApp.getUi().alert(
-      'Success', 
-      'Numeric columns have been processed successfully! Formulas after column N were preserved.', 
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
-  } catch (error) {
-    console.error('Error in processInvoiceData:', error);
-    
-    // Notify user of error
-    SpreadsheetApp.getUi().alert(
-      'Error', 
-      'An error occurred while processing numeric columns: ' + error.message, 
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
-  }
 } 
