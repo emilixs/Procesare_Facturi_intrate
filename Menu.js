@@ -223,7 +223,7 @@ function showPLReconciliationDialog() {
 function startPLReconciliation(month, plUrl) {
   try {
     const service = createPLReconciliationService(plUrl, month);
-    return service.processReconciliation(true); // Test mode enabled
+    return service.processReconciliation(false); // Process all records
   } catch (error) {
     console.error('Error in startPLReconciliation:', error);
     throw error;
