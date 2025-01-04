@@ -75,6 +75,9 @@ Reply only with a JSON object in this format:
      * @private
      */
     callClaude: function(prompt) {
+      // Log the prompt being sent
+      console.log('Prompt sent to Claude:', prompt);
+
       const options = {
         method: 'POST',
         headers: {
@@ -97,21 +100,24 @@ Reply only with a JSON object in this format:
         })
       };
 
-      const response = UrlFetchApp.fetch(this.endpoint, options);
-      const responseCode = response.getResponseCode();
-      const responseBody = response.getContentText();
-      
-      if (responseCode !== 200) {
-        const error = new Error('Claude API request failed');
-        error.details = {
-          statusCode: responseCode,
-          response: responseBody,
-          headers: response.getHeaders()
-        };
-        throw error;
-      }
-
       try {
+        const response = UrlFetchApp.fetch(this.endpoint, options);
+        const responseCode = response.getResponseCode();
+        const responseBody = response.getContentText();
+        
+        // Log the raw response
+        console.log('Claude Response:', JSON.stringify(responseBody));
+        
+        if (responseCode !== 200) {
+          const error = new Error('Claude API request failed');
+          error.details = {
+            statusCode: responseCode,
+            response: responseBody,
+            headers: response.getHeaders()
+          };
+          throw error;
+        }
+
         const parsedResponse = JSON.parse(responseBody);
         if (!parsedResponse.content || !parsedResponse.content[0] || !parsedResponse.content[0].text) {
           throw new Error('Invalid response structure');
