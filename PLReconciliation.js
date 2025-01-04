@@ -234,6 +234,19 @@ Remember: It's better to find a correct match with medium confidence than miss a
       const prompt = createMatchingQuery(entry.supplier, 
         allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
 
+      // Add detailed logging for first transaction
+      if (entry.supplier === sourceSpreadsheet.getActiveSheet().getRange("B2").getValue()) {
+        console.log("\n=== FULL PROMPT FOR FIRST TRANSACTION ===");
+        console.log("Supplier:", entry.supplier);
+        console.log("\nComplete Prompt:");
+        console.log(prompt);
+        console.log("\nPotential Matches:");
+        allPotentialMatches.forEach(match => {
+          console.log(`${match.reference}: ${match.text}`);
+        });
+        console.log("=== END OF FIRST TRANSACTION LOGGING ===\n");
+      }
+
       const claude = getClaudeService();
       const matchResult = claude.matchClient(entry.supplier, allPotentialMatches.map(match => ({
         name: match.text,
