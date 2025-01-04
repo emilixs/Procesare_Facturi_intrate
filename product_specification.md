@@ -64,10 +64,19 @@ Handles the reconciliation of invoice data with P&L entries across Expenses and 
   - month: Processing month (e.g., "October")
 - Returns: Service object with reconciliation methods
 
-##### processReconciliation()
+##### processReconciliation(testMode)
 - Processes invoice entries against P&L sheets
-- Manages LLM matching process
-- Updates status tracking
+- Parameters:
+  - testMode: boolean (default: true) - When true, processes only first 10 entries
+- Returns: void
+
+##### processTestReconciliation()
+- Convenience method to run reconciliation in test mode (10 entries)
+- Returns: void
+
+##### processFullReconciliation()
+- Convenience method to run full reconciliation
+- Returns: void
 
 ##### matchAndUpdateEntry(entry)
 - Matches single entry against both sheets
@@ -145,7 +154,13 @@ Manages all LLM (Claude) interactions for supplier matching.
 
 ### 4.1 Reconciliation Flow
 1. Load source and target spreadsheets
-2. For each unmatched entry:
+2. Determine processing mode (test/full)
+3. In test mode:
+   - Process only first 10 entries
+   - Provide quick feedback for iteration
+4. In full mode:
+   - Process all entries
+5. For each entry:
    - Check Expenses sheet
    - Check Staffing sheet
    - Use LLM for matching
@@ -213,3 +228,11 @@ Manages all LLM (Claude) interactions for supplier matching.
 
 ### 4.3 P&L Reconciliation Formats
 [Previous P&L format documentation remains the same...] 
+
+### 6. Testing Features
+#### Quick Iteration Mode
+- Process only first 10 transactions
+- Enabled by default for faster testing
+- Comprehensive logging in test mode
+- Easy switching between test/full mode
+- Separate methods for test and full processing 

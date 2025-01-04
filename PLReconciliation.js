@@ -199,9 +199,10 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   /**
    * Main reconciliation process
    */
-  function processReconciliation() {
+  function processReconciliation(testMode = true) {
     logEvent('reconciliation_start', {
-      totalRows: sourceSpreadsheet.getActiveSheet().getLastRow() - 1
+      totalRows: sourceSpreadsheet.getActiveSheet().getLastRow() - 1,
+      mode: testMode ? 'test' : 'full'
     });
 
     try {
@@ -211,12 +212,15 @@ function createPLReconciliationService(spreadsheetUrl, month) {
 
       let processedCount = 0;
       let matchedCount = 0;
+      
+      // Calculate how many rows to process
+      const maxRows = testMode ? Math.min(11, data.length) : data.length;
 
       // Process each row starting from row 2
-      for (let i = 1; i < data.length; i++) {
+      for (let i = 1; i < maxRows; i++) {
         const entry = {
           supplier: data[i][1],    // Column B (Furnizor)
-          amount: data[i][14],     // Column O (Suma in EUR) - changed from column F
+          amount: data[i][14],     // Column O (Suma in EUR)
           isMatched: data[i][15]   // Column P (Matched P&L)
         };
 
@@ -224,8 +228,9 @@ function createPLReconciliationService(spreadsheetUrl, month) {
         logEvent('processing_entry', {
           row: i + 1,
           supplier: entry.supplier,
-          amountEUR: entry.amount,  // Explicitly log that this is EUR amount
-          columnUsed: 'O'          // Log which column we're using for amount
+          amountEUR: entry.amount,
+          columnUsed: 'O',
+          mode: testMode ? 'test' : 'full'
         });
 
         // Skip if already matched
@@ -247,7 +252,9 @@ function createPLReconciliationService(spreadsheetUrl, month) {
       logEvent('reconciliation_complete', {
         processedCount,
         matchedCount,
-        successRate: (matchedCount / processedCount * 100).toFixed(2) + '%'
+        successRate: (matchedCount / processedCount * 100).toFixed(2) + '%',
+        mode: testMode ? 'test' : 'full',
+        rowsProcessed: maxRows - 1
       });
     } catch (error) {
       logEvent('reconciliation_error', {
@@ -255,16 +262,21 @@ function createPLReconciliationService(spreadsheetUrl, month) {
         stack: error.stack,
         systemState: {
           month: month,
-          activeSheet: sourceSpreadsheet.getActiveSheet().getName()
+          activeSheet: sourceSpreadsheet.getActiveSheet().getName(),
+          mode: testMode ? 'test' : 'full'
         }
       });
       throw error;
     }
   }
 
-  // Return public methods
+  // Return public methods with test mode option
   return {
     processReconciliation,
-    matchAndUpdateEntry
+    matchAndUpdateEntry,
+    // Add method to run in test mode
+    processTestReconciliation: () => processReconciliation(true),
+    // Add method to run full reconciliation
+    processFullReconciliation: () => processReconciliation(false)
   };
 } 
