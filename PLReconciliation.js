@@ -268,30 +268,36 @@ Remember: It's better to find a correct match with medium confidence than miss a
         
         // Find the month column in the target sheet
         const targetSheet = matchedEntry.reference.startsWith('Expenses!') ? expensesSheet : staffingSheet;
-        const headers = targetSheet.getRange(1, 1, 1, targetSheet.getLastColumn()).getValues()[0];
+        const headers = targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]
+          .map(header => header.toString().trim());  // Convert to string and trim whitespace
         
         // Add detailed logging for debugging headers
         console.log('=== Header Debug Info ===');
         console.log('Looking for column:', monthColumn);
-        console.log('Available headers:', headers);
-        console.log('Header types:', headers.map(h => typeof h));
-        console.log('Header lengths:', headers.map(h => h.length));
-        console.log('Header exact matches:', headers.map(h => h === monthColumn));
+        console.log('Raw headers (from row 2):', targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]);
+        console.log('Processed headers:', headers);
+        console.log('Number of columns:', headers.length);
+        console.log('Non-empty headers:', headers.filter(h => h !== ''));
+        console.log('Header values with lengths:');
+        headers.forEach((h, i) => {
+          console.log(`Column ${i + 1}: "${h}" (length: ${h.length}, type: ${typeof h})`);
+        });
         console.log('=== End Header Debug Info ===');
         
         const monthColumnIndex = headers.findIndex(header => {
-          // Add logging for each comparison
-          console.log(`Comparing "${header}" (${typeof header}) with "${monthColumn}" (${typeof monthColumn})`);
-          console.log('Are they equal?', header === monthColumn);
-          return header === monthColumn;
+          const headerStr = header.toString().trim();
+          const monthStr = monthColumn.toString().trim();
+          console.log(`Comparing "${headerStr}" with "${monthStr}"`);
+          return headerStr === monthStr;
         });
         
         if (monthColumnIndex === -1) {
-          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet. Available columns: ${headers.join(', ')}`);
+          const nonEmptyHeaders = headers.filter(h => h !== '');
+          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet. Available non-empty columns: ${nonEmptyHeaders.join(', ')}`);
         }
 
-        // Update the amount in the target sheet
-        const targetCell = targetSheet.getRange(matchedEntry.rowIndex, monthColumnIndex + 1);
+        // Update the amount in the target sheet - adjust row index since headers are on row 2
+        const targetCell = targetSheet.getRange(matchedEntry.rowIndex + 1, monthColumnIndex + 1);
         const currentValue = targetCell.getValue() || 0;
         const newValue = currentValue + entry.amount;
 
