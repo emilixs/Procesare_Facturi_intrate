@@ -29,8 +29,8 @@ function createClaudeService() {
     /**
      * Compare a client name from invoice with P&L client list
      * @param {string} invoiceClient - Client name from invoice
-     * @param {Array<{name: string, line: number}>} plClients - Array of P&L clients with line numbers
-     * @returns {Object} Match result with line number and confidence
+     * @param {Array<{name: string, reference: string}>} plClients - Array of P&L clients with cell references
+     * @returns {Object} Match result with cell reference and confidence
      */
     matchClient: function(invoiceClient, plClients) {
       if (!this.apiKey) {
@@ -38,14 +38,14 @@ function createClaudeService() {
       }
 
       // Validate the plClients array
-      if (!Array.isArray(plClients) || plClients.some(c => !c.name || !c.line)) {
+      if (!Array.isArray(plClients) || plClients.some(c => !c.name || !c.reference)) {
         throw new Error('Invalid P&L clients data structure');
       }
 
       const prompt = `
 Compare this invoice client name: "${invoiceClient}"
 with these P&L client names:
-${plClients.map(c => `Line ${c.line}: ${c.name}`).join('\n')}
+${plClients.map(c => `${c.reference}: ${c.name}`).join('\n')}
 
 Rules:
 1. Ignore case, spaces, and special characters
@@ -55,7 +55,7 @@ Rules:
 Reply only with a JSON object in this format:
 {
   "matched": true/false,
-  "lineNumber": number or null,
+  "reference": string (the exact cell reference provided, e.g. "Expenses!C128"),
   "confidence": 0.0-1.0
 }`;
 
@@ -71,7 +71,7 @@ Reply only with a JSON object in this format:
         } catch (retryError) {
           return {
             matched: false,
-            lineNumber: null,
+            reference: null,
             confidence: 0
           };
         }
@@ -100,7 +100,7 @@ Reply only with a JSON object in this format:
           model: "claude-3-5-sonnet-latest",
           max_tokens: 4000,
           temperature: 0,
-          system: "You are a helpful assistant that matches company names. You only respond with JSON.",
+          system: "You are a helpful assistant that matches company names. You only respond with JSON. When you find a match, return the exact cell reference that was provided in the input.",
           messages: [
             {
               role: "user",

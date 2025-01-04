@@ -119,11 +119,10 @@ Remember: It's better to find a correct match with medium confidence than miss a
       const expensesData = expensesSheet.getDataRange().getValues();
       const staffingData = staffingSheet.getDataRange().getValues();
 
-      // Create potential matches from both sheets
+      // Create potential matches from both sheets with direct cell references
       const expensesMatches = expensesData.slice(1)
         .map((row, index) => ({
           text: row[2].toString(), // Column C
-          rowIndex: index + 2,
           reference: `Expenses!C${index + 2}`
         }))
         .filter(match => match.text.trim() !== '');
@@ -131,7 +130,6 @@ Remember: It's better to find a correct match with medium confidence than miss a
       const staffingMatches = staffingData.slice(1)
         .map((row, index) => ({
           text: row[3].toString(), // Column D
-          rowIndex: index + 2,
           reference: `Staffing!D${index + 2}`
         }))
         .filter(match => match.text.trim() !== '');
@@ -144,16 +142,17 @@ Remember: It's better to find a correct match with medium confidence than miss a
         allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
 
       const claude = getClaudeService();
-      const matchResult = claude.matchClient(entry.supplier, allPotentialMatches.map(match => ({
-        name: match.text,
-        line: match.rowIndex
-      })));
+      const matchResult = claude.matchClient(entry.supplier, allPotentialMatches);
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
-        const matchedEntry = allPotentialMatches[matchResult.lineNumber - 2];
+        // Parse the reference to get sheet and cell
+        const [sheetName, cellRef] = matchResult.reference.split('!');
+        const targetSheet = sheetName === 'Expenses' ? expensesSheet : staffingSheet;
+        
+        // Get the row number from the cell reference (e.g., C128 -> 128)
+        const rowNumber = parseInt(cellRef.match(/\d+/)[0]);
         
         // Find the month column in the target sheet
-        const targetSheet = matchedEntry.reference.startsWith('Expenses!') ? expensesSheet : staffingSheet;
         const headers = targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]
           .map(header => header.toString().trim());
         
@@ -165,22 +164,21 @@ Remember: It's better to find a correct match with medium confidence than miss a
         
         if (monthColumnIndex === -1) {
           const nonEmptyHeaders = headers.filter(h => h !== '');
-          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet. Available non-empty columns: ${nonEmptyHeaders.join(', ')}`);
+          throw new Error(`Column "${monthColumn}" not found in ${sheetName} sheet. Available non-empty columns: ${nonEmptyHeaders.join(', ')}`);
         }
 
-        // Update the amount in the target sheet
-        const targetCell = targetSheet.getRange(matchedEntry.rowIndex + 1, monthColumnIndex + 1);
+        // Update the amount in the target sheet using the exact row number
+        const targetCell = targetSheet.getRange(rowNumber, monthColumnIndex + 1);
         const currentValue = targetCell.getValue() || 0;
         const newValue = currentValue + entry.amount;
         targetCell.setValue(newValue);
 
         return {
           isMatch: true,
-          reference: matchedEntry.reference,
-          rowIndex: matchedEntry.rowIndex,
+          reference: matchResult.reference,
           confidence: matchResult.confidence,
           explanation: matchResult.explanation,
-          sheet: matchedEntry.reference.split('!')[0]
+          sheet: sheetName
         };
       }
 
