@@ -4,7 +4,7 @@
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Invoice Processing')
-    .addItem('To Numbers', 'processInvoiceData')
+    .addItem('Convert Numeric Columns', 'processInvoiceData')
     .addItem('P&L Reconciliation', 'showPLReconciliationDialog')
     .addToUi();
 }

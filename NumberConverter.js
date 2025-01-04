@@ -75,14 +75,4 @@ function processInvoiceData() {
       SpreadsheetApp.getUi().ButtonSet.OK
     );
   }
-}
-
-/**
- * Adds a menu item to trigger the invoice processing
- */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Invoice Processing')
-    .addItem('Convert Numeric Columns', 'processInvoiceData')
-    .addToUi();
 } 
