@@ -75,7 +75,45 @@ function createPLReconciliationService(spreadsheetUrl, month) {
    * @private
    */
   function createMatchingQuery(supplier, targetData) {
-    const prompt = `Compare "${supplier}" with the following potential matches and determine the best match if any exists:\n${targetData.join('\n')}`;
+    const prompt = `Act as an experienced accountant who understands company names and their variations.
+
+Task: Find if this company "${supplier}" matches any company in the list below.
+
+Consider these matching scenarios:
+1. Different legal entity formats:
+   - "Company SRL" = "Company S.R.L." = "COMPANY S.R.L"
+   - "Company SA" = "Company S.A." = "COMPANY SA"
+
+2. Common abbreviations and variations:
+   - "International" = "Intl" = "Int."
+   - "Technology" = "Tech" = "Technologies"
+   - "Solutions" = "Sol." = "Sols"
+
+3. Brand names vs legal names:
+   - A company might be listed by its brand name in one place and legal name in another
+   - Example: "Google Cloud" might match "GOOGLE *CLOUD" or "Google LLC"
+
+4. Special characters and formatting:
+   - Ignore spaces, dots, dashes, underscores
+   - Example: "Tech-Soft" = "TechSoft" = "Tech Soft"
+
+5. Context clues:
+   - Consider the business context
+   - Look for unique identifying parts of names
+   - Consider if the entry might be a subdivision or department of a larger company
+
+List of potential matches:
+${targetData.join('\n')}
+
+Reply in JSON format:
+{
+  "matched": boolean,
+  "lineNumber": number or null,
+  "confidence": number (0-1),
+  "explanation": "Detailed explanation of why this is or isn't a match, including what patterns or variations were considered"
+}
+
+Remember: It's better to find a correct match with medium confidence than miss a valid match due to strict matching.`;
     
     // Pre-request logging with full prompt
     logEvent('llm_request_preparation', {
@@ -83,7 +121,7 @@ function createPLReconciliationService(spreadsheetUrl, month) {
       targetDataSize: targetData.length,
       context: 'supplier_matching',
       prompt: prompt,
-      targetData: targetData, // Log the actual comparison data
+      targetData: targetData,
       timestamp_sent: new Date().toISOString()
     });
 
@@ -363,13 +401,27 @@ function createPLReconciliationService(spreadsheetUrl, month) {
         promptUsed: prompt
       });
 
-      if (matchResult.matched && matchResult.confidence > 0.8) {
+      if (matchResult.matched && matchResult.confidence > 0.5) {
         const matchedEntry = potentialMatches[matchResult.lineNumber - 2];
+        logEvent('match_found', {
+          supplier: entry.supplier,
+          matchedWith: matchedEntry.text,
+          confidence: matchResult.confidence,
+          explanation: matchResult.explanation,
+          matchingPatterns: {
+            exactMatch: entry.supplier.toLowerCase() === matchedEntry.text.toLowerCase(),
+            partialMatch: entry.supplier.toLowerCase().includes(matchedEntry.text.toLowerCase()) || 
+                         matchedEntry.text.toLowerCase().includes(entry.supplier.toLowerCase()),
+            withoutLegalEntity: entry.supplier.toLowerCase().replace(/s\.?r\.?l\.?|s\.?a\.?/gi, '').trim() ===
+                               matchedEntry.text.toLowerCase().replace(/s\.?r\.?l\.?|s\.?a\.?/gi, '').trim()
+          }
+        });
         return {
           isMatch: true,
           reference: matchedEntry.reference,
           rowIndex: matchedEntry.rowIndex,
           confidence: matchResult.confidence,
+          explanation: matchResult.explanation,
           promptUsed: prompt,
           rawResponse: matchResult
         };
