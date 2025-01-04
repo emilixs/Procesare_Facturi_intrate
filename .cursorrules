@@ -1,0 +1,225 @@
+{
+  "rules": {
+    "fileTypes": {
+      "js": {
+        "formatter": "prettier",
+        "formatterOptions": {
+          "singleQuote": true,
+          "trailingComma": "es5",
+          "printWidth": 100,
+          "tabWidth": 2,
+          "semi": true
+        }
+      }
+    },
+    "search": {
+      "excludePatterns": [
+        "node_modules/**",
+        ".git/**",
+        "dist/**",
+        "build/**",
+        "*.log"
+      ]
+    },
+    "completion": {
+      "includedFiles": [
+        "*.js",
+        "*.gs",
+        "*.html"
+      ],
+      "excludedFiles": [
+        "*.md",
+        "*.log",
+        "*.json"
+      ]
+    },
+    "documentation": {
+      "generateFor": [
+        "*.js",
+        "*.gs"
+      ],
+      "style": "google"
+    }
+  },
+  "standards": {
+    "ui": {
+      "design": {
+        "colors": { "primary": "#1a73e8" },
+        "spacing": "20-25px",
+        "borderRadius": "8px",
+        "font": "Arial, sans-serif"
+      },
+      "features": [
+        "Real-time validation",
+        "Loading states",
+        "Error messages",
+        "Helper text",
+        "Responsive states"
+      ],
+      "minWidth": "450px"
+    },
+    "codeStyle": {
+      "patterns": {
+        "preferred": "factory functions",
+        "avoid": "ES6 classes"
+      }
+    },
+    "logging": {
+      "llmIntegration": {
+        "preRequest": [
+          "timestamp",
+          "data size",
+          "context",
+          "parameters"
+        ],
+        "postResponse": [
+          "timestamp",
+          "processing time",
+          "token usage",
+          "status"
+        ],
+        "errorHandling": [
+          "full stack",
+          "context",
+          "retry attempts",
+          "system state"
+        ],
+        "security": [
+          "mask sensitive data",
+          "separate auth details",
+          "monitor patterns"
+        ]
+      },
+      "retention": "30 days"
+    }
+  }
+} 
+
+When creating user interfaces for Google Apps Script dialogs, always implement:
+
+1. Visual Design:
+   - Use Material Design color palette (primary: #1a73e8)
+   - Implement proper spacing (padding: 20-25px)
+   - Add subtle shadows (box-shadow) and rounded corners (border-radius: 8px)
+   - Use clean, readable fonts (Arial/sans-serif)
+   - Include visual feedback (hover states, transitions)
+
+2. User Experience:
+   - Real-time input validation
+   - Clear error messages below inputs
+   - Loading states with spinners
+   - Helpful placeholder text
+   - Info/helper text below inputs
+   - Disabled states for buttons when appropriate
+   - Smooth transitions (0.2s) for interactive elements
+
+3. Structure:
+   - Proper HTML5 structure with DOCTYPE
+   - Organized CSS with meaningful classes
+   - Container with white background
+   - Properly sized dialog (minimum 450px width)
+   - Clear visual hierarchy
+
+4. Input Handling:
+   - Input sanitization (trim())
+   - Disable autocomplete when appropriate
+   - Clear validation rules
+   - Immediate feedback on user input
+   - Proper error handling with user feedback
+
+5. Professional Polish:
+   - Consistent spacing
+   - Clear typography hierarchy
+   - Professional color scheme
+   - Loading/processing states
+   - Clean error handling
+   - Responsive button states
+
+Remember: The interface should feel professional, responsive, and Google-like while providing clear feedback and guidance to users.
+
+Learning from mistakes 
+
+Avoid Class Declarations: Google Apps Script works better with traditional function-based approaches rather than ES6 classes. I should have used the factory function pattern (createClaudeService) from the beginning instead of the class-based approach.
+File Organization: Each file should have a clear, single responsibility. I should have been more explicit about this in the initial design:
+Menu.js - UI and menu handling
+NumberConverter.js - Number conversion logic
+PLReconciliation.js - P&L reconciliation logic
+ClaudeService.js - Claude API integration (as a service factory)
+Documentation: I should have documented in the product specification that we're using a factory pattern for services rather than classes, as this is more aligned with Google Apps Script's environment.
+Naming Conventions: Using clear prefixes for service factories (like create or get) helps avoid naming conflicts and makes the code's intent clearer
+
+LLM Integration Logging Best Practices
+
+
+1. Pre-Request Logging
+}
+Key Points:
+Always log before sending data to LLM:
+Request timestamp
+Data size/volume
+Sample of the data (truncated)
+Context/purpose of the request
+Request parameters/configuration
+2. Post-Response Logging
+}
+Key Points:
+Log immediately after receiving LLM response:
+Response timestamp
+Processing time
+Token usage
+Response status
+Sample of response
+Any rate limiting info
+3. Error Handling
+}
+Key Points:
+Comprehensive error logging:
+Full error stack
+Context when error occurred
+Retry attempts
+System state at time of error
+4. Performance Monitoring
+}
+5. Practical Implementation Rules
+Request Phase:
+1. Log before any data transformation
+Log after data cleaning/preparation
+Log final payload before sending to LLM
+Response Phase:
+Log raw response immediately
+Log after response parsing
+Log any data transformations
+Log final processed output
+Error Handling:
+1. Log all API errors with full context
+Log retry attempts
+Log fallback actions
+Log user impact
+System Health:
+Log rate limit status
+Log token usage trends
+Log response times
+Log queue status
+6. Structured Logging Format
+Always use structured logging:
+}
+7. Security Considerations
+Never log sensitive data
+Mask/truncate personal information
+Keep authentication details separate
+Log access patterns
+Monitor for unusual behavior
+8. Retention and Analysis
+Keep logs for at least 30 days
+Implement log rotation
+Regular performance analysis
+Track token usage patterns
+Monitor cost metrics
+9. Integration Example
+}
+This structured approach ensures:
+Consistent logging across the application
+Easy debugging and monitoring
+Performance optimization opportunities
+Better error tracking and resolution
+Clear audit trail for all LLM interactions

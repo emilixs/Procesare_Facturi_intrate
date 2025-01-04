@@ -1,0 +1,43 @@
+# Git files
+.git/**
+.gitignore
+
+# Node.js files
+node_modules/**
+package.json
+package-lock.json
+
+# Development files
+.vscode/**
+.idea/**
+*.swp
+*.swo
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Environment and config files
+.env
+.env.local
+.env.*.local
+
+# Documentation and markdown files
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+
+# Test files
+test/**
+__tests__/**
+*.test.js
+*.spec.js
+
+# Other development files
+.eslintrc*
+.prettierrc*
+.editorconfig 
