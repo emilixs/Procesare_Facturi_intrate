@@ -3,6 +3,25 @@
  * Handles client name matching using Claude AI
  */
 function createClaudeService() {
+  // Initialize or get the log sheet
+  function getLogSheet() {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName('LLM_Logs');
+    if (!sheet) {
+      sheet = ss.insertSheet('LLM_Logs');
+      sheet.getRange('A1:C1').setValues([['Timestamp', 'Request', 'Response']]);
+      sheet.setFrozenRows(1);
+    }
+    return sheet;
+  }
+
+  // Log to sheet function
+  function logToSheet(request, response) {
+    const logSheet = getLogSheet();
+    const timestamp = new Date().toISOString();
+    logSheet.appendRow([timestamp, request, response]);
+  }
+
   return {
     apiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
     endpoint: 'https://api.anthropic.com/v1/messages',
@@ -117,6 +136,9 @@ Reply only with a JSON object in this format:
         console.log("\n=== LLM RESPONSE ===");
         console.log(llmResponse);
         console.log("=== END RESPONSE ===\n");
+
+        // Save to log sheet
+        logToSheet(prompt, llmResponse);
 
         return llmResponse;
       } catch (parseError) {
