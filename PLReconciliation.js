@@ -270,13 +270,97 @@ function createPLReconciliationService(spreadsheetUrl, month) {
     }
   }
 
+  /**
+   * Checks a sheet for supplier match
+   * @private
+   * @param {Object} entry - The entry to match
+   * @param {Sheet} sheet - The sheet to check
+   * @param {string} matchColumn - The column letter to match against
+   * @param {string} sheetName - Name of the sheet for logging
+   * @returns {Object} Match result
+   */
+  function checkSheetForMatch(entry, sheet, matchColumn, sheetName) {
+    // Log start of sheet check
+    logEvent('sheet_check_start', {
+      supplier: entry.supplier,
+      sheet: sheetName,
+      matchColumn
+    });
+
+    try {
+      // Get all data from the sheet
+      const data = sheet.getDataRange().getValues();
+      const headers = data[0];
+      
+      // Find the column index for matching
+      const matchColumnIndex = headers.map(h => h.toString().toLowerCase())
+        .indexOf(matchColumn.toLowerCase());
+      
+      if (matchColumnIndex === -1) {
+        throw new Error(`Match column ${matchColumn} not found in ${sheetName}`);
+      }
+
+      // Create array of potential matches for LLM
+      const potentialMatches = data.slice(1) // Skip header row
+        .map((row, index) => ({
+          text: row[matchColumnIndex].toString(),
+          rowIndex: index + 2, // +2 because we skipped header and array is 0-based
+          reference: `${sheetName}!${matchColumn}${index + 2}`
+        }));
+
+      // Create LLM query
+      const prompt = createMatchingQuery(entry.supplier, 
+        potentialMatches.map(m => `${m.reference}: ${m.text}`));
+
+      // Get Claude service
+      const claude = getClaudeService();
+      
+      // Get match decision from LLM
+      const matchResult = claude.matchClient(entry.supplier, potentialMatches);
+
+      // Log the match attempt
+      logEvent('match_attempt', {
+        supplier: entry.supplier,
+        sheet: sheetName,
+        matchResult,
+        promptUsed: prompt
+      });
+
+      if (matchResult.matched && matchResult.confidence > 0.8) {
+        const matchedEntry = potentialMatches[matchResult.lineNumber - 2]; // Adjust for header row
+        return {
+          isMatch: true,
+          reference: matchedEntry.reference,
+          rowIndex: matchedEntry.rowIndex,
+          confidence: matchResult.confidence,
+          promptUsed: prompt,
+          rawResponse: matchResult
+        };
+      }
+
+      return {
+        isMatch: false,
+        promptUsed: prompt,
+        rawResponse: matchResult
+      };
+
+    } catch (error) {
+      logEvent('sheet_check_error', {
+        supplier: entry.supplier,
+        sheet: sheetName,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
   // Return public methods with test mode option
   return {
     processReconciliation,
     matchAndUpdateEntry,
-    // Add method to run in test mode
+    checkSheetForMatch,
     processTestReconciliation: () => processReconciliation(true),
-    // Add method to run full reconciliation
     processFullReconciliation: () => processReconciliation(false)
   };
 } 
