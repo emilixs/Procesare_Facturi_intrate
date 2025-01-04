@@ -301,11 +301,16 @@ Remember: It's better to find a correct match with medium confidence than miss a
           supplier: entry.supplier,
           amountEUR: entry.amount,
           columnUsed: 'O',
-          mode: testMode ? 'test' : 'full'
+          mode: testMode ? 'test' : 'full',
+          currentMatchStatus: entry.isMatched
         });
 
-        // Skip if already matched
-        if (entry.isMatched && entry.isMatched !== '') {
+        // Only skip if there's a valid match reference
+        // Process if empty, "No match", or invalid value
+        if (entry.isMatched && 
+            entry.isMatched !== '' && 
+            entry.isMatched !== 'No match' && 
+            entry.isMatched.includes('!')) {  // Valid match references contain '!' for cell reference
           logEvent('skip_matched_entry', {
             row: i + 1,
             supplier: entry.supplier,
@@ -314,9 +319,28 @@ Remember: It's better to find a correct match with medium confidence than miss a
           continue;
         }
 
+        // If we're reprocessing a previous "No match", log it
+        if (entry.isMatched === 'No match') {
+          logEvent('reprocessing_no_match', {
+            row: i + 1,
+            supplier: entry.supplier,
+            previousStatus: entry.isMatched
+          });
+        }
+
         processedCount++;
         const matchResult = matchAndUpdateEntry(entry);
-        if (matchResult.isMatch) matchedCount++;
+        if (matchResult.isMatch) {
+          matchedCount++;
+          // Log if we successfully matched a previously unmatched entry
+          if (entry.isMatched === 'No match') {
+            logEvent('no_match_converted', {
+              row: i + 1,
+              supplier: entry.supplier,
+              newMatch: matchResult.reference
+            });
+          }
+        }
         updateMatchedStatus(i + 1, matchResult);
       }
 
