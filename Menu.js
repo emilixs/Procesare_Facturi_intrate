@@ -158,41 +158,6 @@ function showPLReconciliationDialog() {
         </div>
         
         <script>
-          // Validate input as user types
-          document.getElementById('month').addEventListener('input', function(e) {
-            validateInput();
-          });
-          
-          document.getElementById('plUrl').addEventListener('input', function(e) {
-            validateInput();
-          });
-          
-          function validateMonth(month) {
-            const months = ['january', 'february', 'march', 'april', 'may', 'june', 
-                          'july', 'august', 'september', 'october', 'november', 'december'];
-            return months.includes(month.toLowerCase().trim());
-          }
-          
-          function validateUrl(url) {
-            return url.trim().includes('docs.google.com/spreadsheets');
-          }
-          
-          function validateInput() {
-            const month = document.getElementById('month').value;
-            const plUrl = document.getElementById('plUrl').value;
-            const submitBtn = document.getElementById('submitBtn');
-            
-            const isMonthValid = validateMonth(month);
-            const isUrlValid = validateUrl(plUrl);
-            
-            document.getElementById('monthError').style.display = 
-              month && !isMonthValid ? 'block' : 'none';
-            document.getElementById('urlError').style.display = 
-              plUrl && !isUrlValid ? 'block' : 'none';
-              
-            submitBtn.disabled = !(isMonthValid && isUrlValid);
-          }
-          
           function submitForm() {
             const month = document.getElementById('month').value;
             const plUrl = document.getElementById('plUrl').value;
@@ -200,8 +165,12 @@ function showPLReconciliationDialog() {
             const loading = document.getElementById('loading');
             
             if (validateMonth(month) && validateUrl(plUrl)) {
+              // Show loading state
               submitBtn.disabled = true;
               loading.style.display = 'block';
+              
+              // Add logging to check if this is being called
+              console.log('Starting reconciliation with:', {month, plUrl});
               
               google.script.run
                 .withSuccessHandler(onSuccess)
@@ -211,17 +180,29 @@ function showPLReconciliationDialog() {
           }
           
           function onSuccess(result) {
+            console.log('Reconciliation completed:', result);
             google.script.host.close();
           }
           
           function onFailure(error) {
-            // Reset loading state
-            document.getElementById('submitBtn').disabled = false;
-            document.getElementById('loading').style.display = 'none';
+            console.error('Reconciliation failed:', error);
+            const submitBtn = document.getElementById('submitBtn');
+            const loading = document.getElementById('loading');
             
-            // Show error
-            const errorMessage = error.message || 'An unexpected error occurred';
-            alert('Error: ' + errorMessage);
+            submitBtn.disabled = false;
+            loading.style.display = 'none';
+            
+            alert('Error: ' + (error.message || 'An unexpected error occurred'));
+          }
+          
+          function validateMonth(month) {
+            const months = ['january', 'february', 'march', 'april', 'may', 'june', 
+                          'july', 'august', 'september', 'october', 'november', 'december'];
+            return months.includes(month.toLowerCase().trim());
+          }
+          
+          function validateUrl(url) {
+            return url.trim().includes('docs.google.com/spreadsheets');
           }
         </script>
       </body>
@@ -234,4 +215,20 @@ function showPLReconciliationDialog() {
     .setTitle('P&L Reconciliation');
     
   SpreadsheetApp.getUi().showModalDialog(userInterface, 'P&L Reconciliation');
+}
+
+/**
+ * Entry point for P&L reconciliation
+ */
+function startPLReconciliation(month, plUrl) {
+  // Add initial logging
+  console.log('Starting P&L reconciliation:', {month, plUrl});
+  
+  try {
+    const service = createPLReconciliationService(plUrl, month);
+    return service.processReconciliation(true); // true for test mode
+  } catch (error) {
+    console.error('Error in startPLReconciliation:', error);
+    throw error;
+  }
 } 
