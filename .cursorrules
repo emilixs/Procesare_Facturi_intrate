@@ -21,6 +21,15 @@
         "*.log"
       ]
     },
+    "codeOrganization": {
+      "menuHandling": {
+        "onOpenFunction": {
+          "allowedFiles": ["Menu.js"],
+          "description": "onOpen function must only exist in Menu.js to prevent conflicts",
+          "error": "Multiple onOpen functions detected. All menu initialization should be in Menu.js"
+        }
+      }
+    },
     "completion": {
       "includedFiles": [
         "*.js",
