@@ -8,8 +8,41 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   // Private variables
   const sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const targetSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl);
+  
+  // Validate sheets exist
   const expensesSheet = targetSpreadsheet.getSheetByName('Expenses');
+  if (!expensesSheet) {
+    throw new Error('Expenses sheet not found in target spreadsheet');
+  }
+
   const staffingSheet = targetSpreadsheet.getSheetByName('Staffing');
+  if (!staffingSheet) {
+    throw new Error('Staffing sheet not found in target spreadsheet');
+  }
+
+  // Validate sheet structures
+  function validateSheetStructure(sheet, sheetName, requiredColumn) {
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const columnIndex = requiredColumn.toUpperCase().charCodeAt(0) - 65;
+    
+    if (columnIndex < 0 || columnIndex >= headers.length) {
+      throw new Error(`Required column ${requiredColumn} not found in ${sheetName} sheet`);
+    }
+
+    // Log sheet validation
+    logEvent('sheet_validation', {
+      sheet: sheetName,
+      headers: headers,
+      requiredColumn: requiredColumn,
+      columnIndex: columnIndex,
+      headerFound: headers[columnIndex]
+    });
+  }
+
+  // Validate both sheets
+  validateSheetStructure(expensesSheet, 'Expenses', 'C');  // Validate Furnizor column
+  validateSheetStructure(staffingSheet, 'Staffing', 'D');  // Validate Partener column
+
   const monthColumn = `${month} real`;
   const startTime = new Date();
 
@@ -280,7 +313,6 @@ function createPLReconciliationService(spreadsheetUrl, month) {
    * @returns {Object} Match result
    */
   function checkSheetForMatch(entry, sheet, matchColumn, sheetName) {
-    // Log start of sheet check
     logEvent('sheet_check_start', {
       supplier: entry.supplier,
       sheet: sheetName,
@@ -292,12 +324,17 @@ function createPLReconciliationService(spreadsheetUrl, month) {
       const data = sheet.getDataRange().getValues();
       const headers = data[0];
       
-      // Find the column index for matching
-      const matchColumnIndex = headers.map(h => h.toString().toLowerCase())
-        .indexOf(matchColumn.toLowerCase());
+      // Convert column letter to index (0-based)
+      const matchColumnIndex = matchColumn.toUpperCase().charCodeAt(0) - 65; // 'A'=0, 'B'=1, 'C'=2, etc.
       
-      if (matchColumnIndex === -1) {
-        throw new Error(`Match column ${matchColumn} not found in ${sheetName}`);
+      logEvent('column_mapping', {
+        columnLetter: matchColumn,
+        columnIndex: matchColumnIndex,
+        headerFound: headers[matchColumnIndex]
+      });
+
+      if (matchColumnIndex < 0 || matchColumnIndex >= headers.length) {
+        throw new Error(`Invalid column ${matchColumn} in ${sheetName}`);
       }
 
       // Create array of potential matches for LLM
@@ -327,7 +364,7 @@ function createPLReconciliationService(spreadsheetUrl, month) {
       });
 
       if (matchResult.matched && matchResult.confidence > 0.8) {
-        const matchedEntry = potentialMatches[matchResult.lineNumber - 2]; // Adjust for header row
+        const matchedEntry = potentialMatches[matchResult.lineNumber - 2];
         return {
           isMatch: true,
           reference: matchedEntry.reference,
