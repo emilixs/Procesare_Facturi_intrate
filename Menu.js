@@ -3,7 +3,7 @@
  */
 function onOpen() {
   const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Invoice Tools')
+  ui.createMenu('Invoice Processing')
     .addItem('To Numbers', 'processInvoiceData')
     .addItem('P&L Reconciliation', 'showPLReconciliationDialog')
     .addToUi();
@@ -200,7 +200,6 @@ function showPLReconciliationDialog() {
             const loading = document.getElementById('loading');
             
             if (validateMonth(month) && validateUrl(plUrl)) {
-              // Show loading state
               submitBtn.disabled = true;
               loading.style.display = 'block';
               
