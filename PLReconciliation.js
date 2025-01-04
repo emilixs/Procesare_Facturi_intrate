@@ -8,6 +8,31 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   // Private variables
   const sourceSpreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const targetSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl);
+  const startTime = new Date();
+
+  // Initialize logging context first
+  const loggingContext = {
+    sessionId: Utilities.getUuid(),
+    startTimestamp: startTime.toISOString(),
+    sourceSpreadsheetId: sourceSpreadsheet.getId(),
+    targetSpreadsheetId: targetSpreadsheet.getId(),
+    month: month
+  };
+
+  /**
+   * Log structured data with context
+   * @private
+   */
+  function logEvent(eventType, data) {
+    const logEntry = {
+      ...loggingContext,
+      timestamp: new Date().toISOString(),
+      eventType,
+      processingTime: new Date() - startTime,
+      ...data
+    };
+    console.log(JSON.stringify(logEntry));
+  }
   
   // Validate sheets exist
   const expensesSheet = targetSpreadsheet.getSheetByName('Expenses');
@@ -44,31 +69,6 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   validateSheetStructure(staffingSheet, 'Staffing', 'D');  // Validate Partener column
 
   const monthColumn = `${month} real`;
-  const startTime = new Date();
-
-  // Initialize logging context
-  const loggingContext = {
-    sessionId: Utilities.getUuid(),
-    startTimestamp: startTime.toISOString(),
-    sourceSpreadsheetId: sourceSpreadsheet.getId(),
-    targetSpreadsheetId: targetSpreadsheet.getId(),
-    month: month
-  };
-
-  /**
-   * Log structured data with context
-   * @private
-   */
-  function logEvent(eventType, data) {
-    const logEntry = {
-      ...loggingContext,
-      timestamp: new Date().toISOString(),
-      eventType,
-      processingTime: new Date() - startTime,
-      ...data
-    };
-    console.log(JSON.stringify(logEntry));
-  }
 
   /**
    * Creates a matching query for the LLM
