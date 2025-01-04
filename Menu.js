@@ -225,7 +225,9 @@ function startPLReconciliation(month, plUrl) {
   console.log('Starting P&L reconciliation:', {month, plUrl});
   
   try {
-    const service = createPLReconciliationService(plUrl, month);
+    // Capitalize first letter of month
+    const formattedMonth = month.charAt(0).toUpperCase() + month.slice(1).toLowerCase();
+    const service = createPLReconciliationService(plUrl, formattedMonth);
     return service.processReconciliation(true); // Test mode
   } catch (error) {
     console.error('Error in startPLReconciliation:', error);
