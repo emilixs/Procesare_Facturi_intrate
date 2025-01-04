@@ -122,26 +122,27 @@ Remember: It's better to find a correct match with medium confidence than miss a
       // Create potential matches from both sheets with direct cell references
       const expensesMatches = expensesData.slice(1)
         .map((row, index) => ({
-          text: row[2].toString(), // Column C
+          name: row[2].toString(), // Column C
           reference: `Expenses!C${index + 2}`
         }))
-        .filter(match => match.text.trim() !== '');
+        .filter(match => match.name.trim() !== '');
 
       const staffingMatches = staffingData.slice(1)
         .map((row, index) => ({
-          text: row[3].toString(), // Column D
+          name: row[3].toString(), // Column D
           reference: `Staffing!D${index + 2}`
         }))
-        .filter(match => match.text.trim() !== '');
+        .filter(match => match.name.trim() !== '');
 
       // Combine matches from both sheets
       const allPotentialMatches = [...expensesMatches, ...staffingMatches];
 
       // Create single prompt with all matches
       const prompt = createMatchingQuery(entry.supplier, 
-        allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
+        allPotentialMatches.map(m => `${m.reference}: ${m.name}`));
 
       const claude = getClaudeService();
+      // Pass the matches with name and reference
       const matchResult = claude.matchClient(entry.supplier, allPotentialMatches);
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
@@ -274,27 +275,21 @@ Remember: It's better to find a correct match with medium confidence than miss a
       // Create potential matches
       const potentialMatches = data.slice(1)
         .map((row, index) => ({
-          text: row[matchColumnIndex].toString(),
-          rowIndex: index + 2,
+          name: row[matchColumnIndex].toString(),
           reference: `${sheetName}!${matchColumn}${index + 2}`
         }))
-        .filter(match => match.text.trim() !== '');
+        .filter(match => match.name.trim() !== '');
 
       const prompt = createMatchingQuery(entry.supplier, 
-        potentialMatches.map(m => `${m.reference}: ${m.text}`));
+        potentialMatches.map(m => `${m.reference}: ${m.name}`));
 
       const claude = getClaudeService();
-      const matchResult = claude.matchClient(entry.supplier, potentialMatches.map(match => ({
-        name: match.text,
-        line: match.rowIndex
-      })));
+      const matchResult = claude.matchClient(entry.supplier, potentialMatches);
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
-        const matchedEntry = potentialMatches[matchResult.lineNumber - 2];
         return {
           isMatch: true,
-          reference: matchedEntry.reference,
-          rowIndex: matchedEntry.rowIndex,
+          reference: matchResult.reference,
           confidence: matchResult.confidence,
           explanation: matchResult.explanation
         };
