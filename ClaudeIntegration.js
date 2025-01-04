@@ -21,7 +21,7 @@ class ClaudeService {
     this.validateConfig(config);
     this.apiKey = config.apiKey;
     this.apiEndpoint = config.apiEndpoint;
-    this.maxTokens = config.maxTokens || 150;
+    this.maxTokens = config.maxTokens || 4000;
     this.temperature = config.temperature || 0;
   }
 

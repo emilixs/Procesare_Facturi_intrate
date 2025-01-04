@@ -90,7 +90,7 @@ Reply in JSON format:
 {
   "matched": boolean,
   "lineNumber": number or null,
-  "confidence": number (0-1),
+  "confidence": number (0.0-1.0),
   "explanation": "Detailed explanation of why this is or isn't a match, including what patterns or variations were considered"
 }
 
