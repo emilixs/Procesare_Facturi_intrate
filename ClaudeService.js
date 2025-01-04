@@ -20,7 +20,6 @@ function createClaudeService() {
 
       // Validate the plClients array
       if (!Array.isArray(plClients) || plClients.some(c => !c.name || !c.line)) {
-        console.error('Invalid plClients format:', JSON.stringify(plClients));
         throw new Error('Invalid P&L clients data structure');
       }
 
@@ -42,34 +41,15 @@ Reply only with a JSON object in this format:
 }`;
 
       try {
-        // Log the plClients data for debugging
-        console.log('P&L Clients:', JSON.stringify(plClients));
-        
         const response = this.callClaude(prompt);
         return JSON.parse(response);
       } catch (error) {
-        console.error('Client matching error:', {
-          error: error.message,
-          stack: error.stack,
-          invoiceClient,
-          plClientsCount: plClients.length,
-          timestamp: new Date().toISOString(),
-          details: error.details || 'No additional details'
-        });
-        
         // Implement retry logic
         try {
-          console.log('Retrying API call...');
           Utilities.sleep(1000); // Wait 1 second before retry
           const retryResponse = this.callClaude(prompt);
           return JSON.parse(retryResponse);
         } catch (retryError) {
-          console.error('Retry failed:', {
-            error: retryError.message,
-            invoiceClient,
-            timestamp: new Date().toISOString()
-          });
-          
           return {
             matched: false,
             lineNumber: null,
@@ -84,8 +64,10 @@ Reply only with a JSON object in this format:
      * @private
      */
     callClaude: function(prompt) {
-      // Log the prompt being sent
-      console.log('Prompt sent to Claude:', prompt);
+      // Log the request
+      console.log("\n=== LLM REQUEST ===");
+      console.log(prompt);
+      console.log("=== END REQUEST ===\n");
 
       const options = {
         method: 'POST',
@@ -96,7 +78,7 @@ Reply only with a JSON object in this format:
         },
         muteHttpExceptions: true,
         payload: JSON.stringify({
-          model: "claude-3-5-sonnet-latest",
+          model: "claude-3-sonnet-20240229",
           max_tokens: 4000,
           temperature: 0,
           system: "You are a helpful assistant that matches company names. You only respond with JSON.",
@@ -114,9 +96,6 @@ Reply only with a JSON object in this format:
         const responseCode = response.getResponseCode();
         const responseBody = response.getContentText();
         
-        // Log the raw response
-        console.log('Claude Response:', JSON.stringify(responseBody));
-        
         if (responseCode !== 200) {
           const error = new Error('Claude API request failed');
           error.details = {
@@ -131,12 +110,14 @@ Reply only with a JSON object in this format:
         if (!parsedResponse.content || !parsedResponse.content[0] || !parsedResponse.content[0].text) {
           throw new Error('Invalid response structure');
         }
+
+        // Log the actual LLM response text
+        console.log("\n=== LLM RESPONSE ===");
+        console.log(parsedResponse.content[0].text);
+        console.log("=== END RESPONSE ===\n");
+
         return parsedResponse.content[0].text;
       } catch (parseError) {
-        console.error('Response parsing error:', {
-          error: parseError.message,
-          responseBody: responseBody
-        });
         throw parseError;
       }
     }
