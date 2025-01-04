@@ -78,7 +78,7 @@ Reply only with a JSON object in this format:
         },
         muteHttpExceptions: true,
         payload: JSON.stringify({
-          model: "claude-3-sonnet-20240229",
+          model: "claude-3-5-sonnet-latest",
           max_tokens: 4000,
           temperature: 0,
           system: "You are a helpful assistant that matches company names. You only respond with JSON.",
@@ -111,12 +111,14 @@ Reply only with a JSON object in this format:
           throw new Error('Invalid response structure');
         }
 
+        const llmResponse = parsedResponse.content[0].text;
+        
         // Log the actual LLM response text
         console.log("\n=== LLM RESPONSE ===");
-        console.log(parsedResponse.content[0].text);
+        console.log(llmResponse);
         console.log("=== END RESPONSE ===\n");
 
-        return parsedResponse.content[0].text;
+        return llmResponse;
       } catch (parseError) {
         throw parseError;
       }
