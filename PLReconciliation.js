@@ -10,30 +10,6 @@ function createPLReconciliationService(spreadsheetUrl, month) {
   const targetSpreadsheet = SpreadsheetApp.openByUrl(spreadsheetUrl);
   const startTime = new Date();
 
-  // Initialize logging context first
-  const loggingContext = {
-    sessionId: Utilities.getUuid(),
-    startTimestamp: startTime.toISOString(),
-    sourceSpreadsheetId: sourceSpreadsheet.getId(),
-    targetSpreadsheetId: targetSpreadsheet.getId(),
-    month: month
-  };
-
-  /**
-   * Log structured data with context
-   * @private
-   */
-  function logEvent(eventType, data) {
-    const logEntry = {
-      ...loggingContext,
-      timestamp: new Date().toISOString(),
-      eventType,
-      processingTime: new Date() - startTime,
-      ...data
-    };
-    console.log(JSON.stringify(logEntry));
-  }
-  
   // Validate sheets exist
   const expensesSheet = targetSpreadsheet.getSheetByName('Expenses');
   if (!expensesSheet) {
@@ -53,15 +29,6 @@ function createPLReconciliationService(spreadsheetUrl, month) {
     if (columnIndex < 0 || columnIndex >= headers.length) {
       throw new Error(`Required column ${requiredColumn} not found in ${sheetName} sheet`);
     }
-
-    // Log sheet validation
-    logEvent('sheet_validation', {
-      sheet: sheetName,
-      headers: headers,
-      requiredColumn: requiredColumn,
-      columnIndex: columnIndex,
-      headerFound: headers[columnIndex]
-    });
   }
 
   // Validate both sheets
@@ -95,16 +62,11 @@ Reply in JSON format:
 }
 
 Remember: It's better to find a correct match with medium confidence than miss a valid match due to strict matching.`;
-    
-    // Pre-request logging with full prompt
-    logEvent('llm_request_preparation', {
-      supplier,
-      targetDataSize: targetData.length,
-      context: 'supplier_matching',
-      prompt: prompt,
-      targetData: targetData,
-      timestamp_sent: new Date().toISOString()
-    });
+
+    // Log only the prompt
+    console.log("\n=== LLM REQUEST ===");
+    console.log(prompt);
+    console.log("=== END REQUEST ===\n");
 
     return prompt;
   }
@@ -115,34 +77,13 @@ Remember: It's better to find a correct match with medium confidence than miss a
    */
   function processLLMResponse(response) {
     try {
-      // Log raw response immediately upon receiving
-      logEvent('llm_response_received', {
-        responseSize: response.length,
-        status: 'success',
-        rawResponse: response,
-        timestamp_received: new Date().toISOString()
-      });
+      // Log only the response
+      console.log("\n=== LLM RESPONSE ===");
+      console.log(response);
+      console.log("=== END RESPONSE ===\n");
 
-      const result = JSON.parse(response);
-      
-      // Log processed result with full context
-      logEvent('llm_response_processed', {
-        matchFound: result.matched,
-        confidence: result.confidence,
-        parsedResponse: result,
-        processingStatus: 'success'
-      });
-
-      return result;
+      return JSON.parse(response);
     } catch (error) {
-      logEvent('llm_response_error', {
-        error: error.message,
-        stack: error.stack,
-        rawResponse: response,
-        processingStatus: 'failed',
-        errorType: 'parsing_error',
-        timestamp_error: new Date().toISOString()
-      });
       throw error;
     }
   }
@@ -152,14 +93,6 @@ Remember: It's better to find a correct match with medium confidence than miss a
    * @private
    */
   function updateMatchedStatus(row, matchResult) {
-    logEvent('status_update_start', {
-      row,
-      matchResult: {
-        isMatch: matchResult.isMatch,
-        reference: matchResult.reference
-      }
-    });
-
     try {
       const sheet = sourceSpreadsheet.getActiveSheet();
       const matchedCell = sheet.getRange(row, 16); // Column P
@@ -171,17 +104,7 @@ Remember: It's better to find a correct match with medium confidence than miss a
         matchedCell.setValue('No match');
         matchedCell.setBackground('#cccccc'); // Gray
       }
-
-      logEvent('status_update_complete', {
-        row,
-        success: true
-      });
     } catch (error) {
-      logEvent('status_update_error', {
-        row,
-        error: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -191,12 +114,6 @@ Remember: It's better to find a correct match with medium confidence than miss a
    * @private
    */
   function matchAndUpdateEntry(entry) {
-    logEvent('entry_processing_start', {
-      supplier: entry.supplier,
-      amount: entry.amount,
-      timestamp_start: new Date().toISOString()
-    });
-
     try {
       // Get data from both sheets
       const expensesData = expensesSheet.getDataRange().getValues();
@@ -222,24 +139,9 @@ Remember: It's better to find a correct match with medium confidence than miss a
       // Combine matches from both sheets
       const allPotentialMatches = [...expensesMatches, ...staffingMatches];
 
-      // Log combined matches info
-      logEvent('combined_matches_preparation', {
-        supplier: entry.supplier,
-        expensesMatchCount: expensesMatches.length,
-        staffingMatchCount: staffingMatches.length,
-        totalMatches: allPotentialMatches.length
-      });
-
       // Create single prompt with all matches
       const prompt = createMatchingQuery(entry.supplier, 
         allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
-
-      // Add detailed logging for first transaction
-      if (entry.supplier === sourceSpreadsheet.getActiveSheet().getRange("B2").getValue()) {
-        console.log("\n=== LLM INTERACTION ===");
-        console.log("\nPrompt sent to LLM:");
-        console.log(prompt);
-      }
 
       const claude = getClaudeService();
       const matchResult = claude.matchClient(entry.supplier, allPotentialMatches.map(match => ({
@@ -247,48 +149,17 @@ Remember: It's better to find a correct match with medium confidence than miss a
         line: match.rowIndex
       })));
 
-      // Log LLM response for first transaction
-      if (entry.supplier === sourceSpreadsheet.getActiveSheet().getRange("B2").getValue()) {
-        console.log("\nResponse received from LLM:");
-        console.log(JSON.stringify(matchResult, null, 2));
-        console.log("=== END LLM INTERACTION ===\n");
-      }
-
-      // Log match result
-      logEvent('match_attempt', {
-        supplier: entry.supplier,
-        matched: matchResult.matched,
-        confidence: matchResult.confidence,
-        lineNumber: matchResult.lineNumber,
-        matchedText: matchResult.lineNumber ? allPotentialMatches[matchResult.lineNumber - 2].text : null,
-        matchedIn: matchResult.lineNumber ? allPotentialMatches[matchResult.lineNumber - 2].reference.split('!')[0] : null
-      });
-
       if (matchResult.matched && matchResult.confidence > 0.5) {
         const matchedEntry = allPotentialMatches[matchResult.lineNumber - 2];
         
         // Find the month column in the target sheet
         const targetSheet = matchedEntry.reference.startsWith('Expenses!') ? expensesSheet : staffingSheet;
         const headers = targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]
-          .map(header => header.toString().trim());  // Convert to string and trim whitespace
-        
-        // Add detailed logging for debugging headers
-        console.log('=== Header Debug Info ===');
-        console.log('Looking for column:', monthColumn);
-        console.log('Raw headers (from row 2):', targetSheet.getRange(2, 1, 1, targetSheet.getLastColumn()).getValues()[0]);
-        console.log('Processed headers:', headers);
-        console.log('Number of columns:', headers.length);
-        console.log('Non-empty headers:', headers.filter(h => h !== ''));
-        console.log('Header values with lengths:');
-        headers.forEach((h, i) => {
-          console.log(`Column ${i + 1}: "${h}" (length: ${h.length}, type: ${typeof h})`);
-        });
-        console.log('=== End Header Debug Info ===');
+          .map(header => header.toString().trim());
         
         const monthColumnIndex = headers.findIndex(header => {
           const headerStr = header.toString().trim();
           const monthStr = monthColumn.toString().trim();
-          console.log(`Comparing "${headerStr}" with "${monthStr}"`);
           return headerStr === monthStr;
         });
         
@@ -297,22 +168,10 @@ Remember: It's better to find a correct match with medium confidence than miss a
           throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet. Available non-empty columns: ${nonEmptyHeaders.join(', ')}`);
         }
 
-        // Update the amount in the target sheet - adjust row index since headers are on row 2
+        // Update the amount in the target sheet
         const targetCell = targetSheet.getRange(matchedEntry.rowIndex + 1, monthColumnIndex + 1);
         const currentValue = targetCell.getValue() || 0;
         const newValue = currentValue + entry.amount;
-
-        // Log the amount update
-        logEvent('amount_update', {
-          supplier: entry.supplier,
-          sheet: matchedEntry.reference.split('!')[0],
-          monthColumn: monthColumn,
-          currentValue: currentValue,
-          addedAmount: entry.amount,
-          newValue: newValue,
-          targetCell: `${matchedEntry.reference.split('!')[0]}!${columnToLetter(monthColumnIndex + 1)}${matchedEntry.rowIndex}`
-        });
-
         targetCell.setValue(newValue);
 
         return {
@@ -325,18 +184,8 @@ Remember: It's better to find a correct match with medium confidence than miss a
         };
       }
 
-      logEvent('no_match_found', {
-        supplier: entry.supplier,
-        timestamp_nomatch: new Date().toISOString()
-      });
-
       return { isMatch: false };
     } catch (error) {
-      logEvent('entry_processing_error', {
-        supplier: entry.supplier,
-        error: error.message,
-        stack: error.stack
-      });
       throw error;
     }
   }
@@ -359,16 +208,10 @@ Remember: It's better to find a correct match with medium confidence than miss a
    * Main reconciliation process
    */
   function processReconciliation(testMode = true) {
-    logEvent('reconciliation_start', {
-      totalRows: sourceSpreadsheet.getActiveSheet().getLastRow() - 1,
-      mode: testMode ? 'test' : 'full'
-    });
-
     try {
       const sheet = sourceSpreadsheet.getActiveSheet();
       const data = sheet.getDataRange().getValues();
-      const headerRow = data[0];
-
+      
       let processedCount = 0;
       let matchedCount = 0;
       
@@ -383,72 +226,30 @@ Remember: It's better to find a correct match with medium confidence than miss a
           isMatched: data[i][15]   // Column P (Matched P&L)
         };
 
-        // Log the entry data being processed
-        logEvent('processing_entry', {
-          row: i + 1,
-          supplier: entry.supplier,
-          amountEUR: entry.amount,
-          columnUsed: 'O',
-          mode: testMode ? 'test' : 'full',
-          currentMatchStatus: entry.isMatched
-        });
-
-        // Only skip if there's a valid match reference
-        // Process if empty, "No match", or invalid value
+        // Skip if there's a valid match reference
         if (entry.isMatched && 
             entry.isMatched !== '' && 
             entry.isMatched !== 'No match' && 
-            entry.isMatched.includes('!')) {  // Valid match references contain '!' for cell reference
-          logEvent('skip_matched_entry', {
-            row: i + 1,
-            supplier: entry.supplier,
-            existingMatch: entry.isMatched
-          });
+            entry.isMatched.includes('!')) {
           continue;
-        }
-
-        // If we're reprocessing a previous "No match", log it
-        if (entry.isMatched === 'No match') {
-          logEvent('reprocessing_no_match', {
-            row: i + 1,
-            supplier: entry.supplier,
-            previousStatus: entry.isMatched
-          });
         }
 
         processedCount++;
         const matchResult = matchAndUpdateEntry(entry);
         if (matchResult.isMatch) {
           matchedCount++;
-          // Log if we successfully matched a previously unmatched entry
-          if (entry.isMatched === 'No match') {
-            logEvent('no_match_converted', {
-              row: i + 1,
-              supplier: entry.supplier,
-              newMatch: matchResult.reference
-            });
-          }
         }
         updateMatchedStatus(i + 1, matchResult);
       }
 
-      logEvent('reconciliation_complete', {
+      return {
         processedCount,
         matchedCount,
         successRate: (matchedCount / processedCount * 100).toFixed(2) + '%',
         mode: testMode ? 'test' : 'full',
         rowsProcessed: maxRows - 1
-      });
+      };
     } catch (error) {
-      logEvent('reconciliation_error', {
-        error: error.message,
-        stack: error.stack,
-        systemState: {
-          month: month,
-          activeSheet: sourceSpreadsheet.getActiveSheet().getName(),
-          mode: testMode ? 'test' : 'full'
-        }
-      });
       throw error;
     }
   }
@@ -463,43 +264,23 @@ Remember: It's better to find a correct match with medium confidence than miss a
    * @returns {Object} Match result
    */
   function checkSheetForMatch(entry, sheet, matchColumn, sheetName) {
-    logEvent('sheet_check_start', {
-      supplier: entry.supplier,
-      sheet: sheetName,
-      matchColumn
-    });
-
     try {
       const data = sheet.getDataRange().getValues();
       const headers = data[0];
       const matchColumnIndex = matchColumn.toUpperCase().charCodeAt(0) - 65;
 
-      // Log just essential info
-      logEvent('column_mapping', {
-        sheet: sheetName,
-        columnLetter: matchColumn,
-        columnIndex: matchColumnIndex
-      });
-
       if (matchColumnIndex < 0 || matchColumnIndex >= headers.length) {
         throw new Error(`Invalid column ${matchColumn} in ${sheetName}`);
       }
 
-      // Create more concise potential matches
+      // Create potential matches
       const potentialMatches = data.slice(1)
         .map((row, index) => ({
           text: row[matchColumnIndex].toString(),
           rowIndex: index + 2,
           reference: `${sheetName}!${matchColumn}${index + 2}`
         }))
-        .filter(match => match.text.trim() !== ''); // Only include non-empty matches
-
-      // Log potential matches count
-      logEvent('potential_matches', {
-        sheet: sheetName,
-        supplier: entry.supplier,
-        matchCount: potentialMatches.length
-      });
+        .filter(match => match.text.trim() !== '');
 
       const prompt = createMatchingQuery(entry.supplier, 
         potentialMatches.map(m => `${m.reference}: ${m.text}`));
@@ -509,16 +290,6 @@ Remember: It's better to find a correct match with medium confidence than miss a
         name: match.text,
         line: match.rowIndex
       })));
-
-      // Log match result with essential info
-      logEvent('match_attempt', {
-        supplier: entry.supplier,
-        sheet: sheetName,
-        matched: matchResult.matched,
-        confidence: matchResult.confidence,
-        lineNumber: matchResult.lineNumber,
-        matchedText: matchResult.lineNumber ? potentialMatches[matchResult.lineNumber - 2].text : null
-      });
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
         const matchedEntry = potentialMatches[matchResult.lineNumber - 2];
@@ -534,16 +305,11 @@ Remember: It's better to find a correct match with medium confidence than miss a
       return { isMatch: false };
 
     } catch (error) {
-      logEvent('sheet_check_error', {
-        supplier: entry.supplier,
-        sheet: sheetName,
-        error: error.message
-      });
       throw error;
     }
   }
 
-  // Return public methods with test mode option
+  // Return public methods
   return {
     processReconciliation,
     matchAndUpdateEntry,
