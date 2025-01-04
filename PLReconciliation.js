@@ -269,10 +269,25 @@ Remember: It's better to find a correct match with medium confidence than miss a
         // Find the month column in the target sheet
         const targetSheet = matchedEntry.reference.startsWith('Expenses!') ? expensesSheet : staffingSheet;
         const headers = targetSheet.getRange(1, 1, 1, targetSheet.getLastColumn()).getValues()[0];
-        const monthColumnIndex = headers.findIndex(header => header === monthColumn);
+        
+        // Add detailed logging for debugging headers
+        console.log('=== Header Debug Info ===');
+        console.log('Looking for column:', monthColumn);
+        console.log('Available headers:', headers);
+        console.log('Header types:', headers.map(h => typeof h));
+        console.log('Header lengths:', headers.map(h => h.length));
+        console.log('Header exact matches:', headers.map(h => h === monthColumn));
+        console.log('=== End Header Debug Info ===');
+        
+        const monthColumnIndex = headers.findIndex(header => {
+          // Add logging for each comparison
+          console.log(`Comparing "${header}" (${typeof header}) with "${monthColumn}" (${typeof monthColumn})`);
+          console.log('Are they equal?', header === monthColumn);
+          return header === monthColumn;
+        });
         
         if (monthColumnIndex === -1) {
-          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet`);
+          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet. Available columns: ${headers.join(', ')}`);
         }
 
         // Update the amount in the target sheet
