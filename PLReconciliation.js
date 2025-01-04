@@ -265,6 +265,34 @@ Remember: It's better to find a correct match with medium confidence than miss a
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
         const matchedEntry = allPotentialMatches[matchResult.lineNumber - 2];
+        
+        // Find the month column in the target sheet
+        const targetSheet = matchedEntry.reference.startsWith('Expenses!') ? expensesSheet : staffingSheet;
+        const headers = targetSheet.getRange(1, 1, 1, targetSheet.getLastColumn()).getValues()[0];
+        const monthColumnIndex = headers.findIndex(header => header === monthColumn);
+        
+        if (monthColumnIndex === -1) {
+          throw new Error(`Column "${monthColumn}" not found in ${matchedEntry.reference.split('!')[0]} sheet`);
+        }
+
+        // Update the amount in the target sheet
+        const targetCell = targetSheet.getRange(matchedEntry.rowIndex, monthColumnIndex + 1);
+        const currentValue = targetCell.getValue() || 0;
+        const newValue = currentValue + entry.amount;
+
+        // Log the amount update
+        logEvent('amount_update', {
+          supplier: entry.supplier,
+          sheet: matchedEntry.reference.split('!')[0],
+          monthColumn: monthColumn,
+          currentValue: currentValue,
+          addedAmount: entry.amount,
+          newValue: newValue,
+          targetCell: `${matchedEntry.reference.split('!')[0]}!${columnToLetter(monthColumnIndex + 1)}${matchedEntry.rowIndex}`
+        });
+
+        targetCell.setValue(newValue);
+
         return {
           isMatch: true,
           reference: matchedEntry.reference,
@@ -289,6 +317,20 @@ Remember: It's better to find a correct match with medium confidence than miss a
       });
       throw error;
     }
+  }
+
+  /**
+   * Converts a column number to letter reference (e.g., 1 -> A, 27 -> AA)
+   * @private
+   */
+  function columnToLetter(column) {
+    let temp, letter = '';
+    while (column > 0) {
+      temp = (column - 1) % 26;
+      letter = String.fromCharCode(temp + 65) + letter;
+      column = (column - temp - 1) / 26;
+    }
+    return letter;
   }
 
   /**
