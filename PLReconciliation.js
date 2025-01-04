@@ -215,16 +215,25 @@ function createPLReconciliationService(spreadsheetUrl, month) {
       // Process each row starting from row 2
       for (let i = 1; i < data.length; i++) {
         const entry = {
-          supplier: data[i][1], // Column B
-          amount: data[i][5],   // Column F
-          isMatched: data[i][15] // Column P
+          supplier: data[i][1],    // Column B (Furnizor)
+          amount: data[i][14],     // Column O (Suma in EUR) - changed from column F
+          isMatched: data[i][15]   // Column P (Matched P&L)
         };
+
+        // Log the entry data being processed
+        logEvent('processing_entry', {
+          row: i + 1,
+          supplier: entry.supplier,
+          amountEUR: entry.amount,  // Explicitly log that this is EUR amount
+          columnUsed: 'O'          // Log which column we're using for amount
+        });
 
         // Skip if already matched
         if (entry.isMatched && entry.isMatched !== '') {
           logEvent('skip_matched_entry', {
             row: i + 1,
-            supplier: entry.supplier
+            supplier: entry.supplier,
+            existingMatch: entry.isMatched
           });
           continue;
         }
