@@ -47,7 +47,7 @@ function createPLReconciliationService(spreadsheetUrl, month) {
 
   // Validate sheet structures
   function validateSheetStructure(sheet, sheetName, requiredColumn) {
-    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const headers = sheet.getRange(2, 1, 1, sheet.getLastColumn()).getValues()[0];
     const columnIndex = requiredColumn.toUpperCase().charCodeAt(0) - 65;
     
     if (columnIndex < 0 || columnIndex >= headers.length) {
