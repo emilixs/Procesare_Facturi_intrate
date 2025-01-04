@@ -217,51 +217,78 @@ Remember: It's better to find a correct match with medium confidence than miss a
     });
 
     try {
-      // Check Expenses sheet
-      const expensesMatch = checkSheetForMatch(entry, expensesSheet, 'C', 'Expenses');
-      if (expensesMatch.isMatch) {
-        logEvent('match_found', {
-          sheet: 'Expenses',
-          supplier: entry.supplier,
-          matchDetails: expensesMatch,
-          llmPromptUsed: expensesMatch.promptUsed, // Log the prompt that led to this match
-          llmResponse: expensesMatch.rawResponse,   // Log the raw response that led to this match
-          timestamp_match: new Date().toISOString()
-        });
-        updateAmount(expensesMatch, entry.amount);
-        return expensesMatch;
-      }
+      // Get data from both sheets
+      const expensesData = expensesSheet.getDataRange().getValues();
+      const staffingData = staffingSheet.getDataRange().getValues();
 
-      // Check Staffing sheet
-      const staffingMatch = checkSheetForMatch(entry, staffingSheet, 'D', 'Staffing');
-      if (staffingMatch.isMatch) {
-        logEvent('match_found', {
-          sheet: 'Staffing',
-          supplier: entry.supplier,
-          matchDetails: staffingMatch,
-          llmPromptUsed: staffingMatch.promptUsed,  // Log the prompt that led to this match
-          llmResponse: staffingMatch.rawResponse,    // Log the raw response that led to this match
-          timestamp_match: new Date().toISOString()
-        });
-        updateAmount(staffingMatch, entry.amount);
-        return staffingMatch;
+      // Create potential matches from both sheets
+      const expensesMatches = expensesData.slice(1)
+        .map((row, index) => ({
+          text: row[2].toString(), // Column C
+          rowIndex: index + 2,
+          reference: `Expenses!C${index + 2}`
+        }))
+        .filter(match => match.text.trim() !== '');
+
+      const staffingMatches = staffingData.slice(1)
+        .map((row, index) => ({
+          text: row[3].toString(), // Column D
+          rowIndex: index + 2,
+          reference: `Staffing!D${index + 2}`
+        }))
+        .filter(match => match.text.trim() !== '');
+
+      // Combine matches from both sheets
+      const allPotentialMatches = [...expensesMatches, ...staffingMatches];
+
+      // Log combined matches info
+      logEvent('combined_matches_preparation', {
+        supplier: entry.supplier,
+        expensesMatchCount: expensesMatches.length,
+        staffingMatchCount: staffingMatches.length,
+        totalMatches: allPotentialMatches.length
+      });
+
+      // Create single prompt with all matches
+      const prompt = createMatchingQuery(entry.supplier, 
+        allPotentialMatches.map(m => `${m.reference}: ${m.text}`));
+
+      const claude = getClaudeService();
+      const matchResult = claude.matchClient(entry.supplier, allPotentialMatches);
+
+      // Log match result
+      logEvent('match_attempt', {
+        supplier: entry.supplier,
+        matched: matchResult.matched,
+        confidence: matchResult.confidence,
+        lineNumber: matchResult.lineNumber,
+        matchedText: matchResult.lineNumber ? allPotentialMatches[matchResult.lineNumber - 2].text : null,
+        matchedIn: matchResult.lineNumber ? allPotentialMatches[matchResult.lineNumber - 2].reference.split('!')[0] : null
+      });
+
+      if (matchResult.matched && matchResult.confidence > 0.5) {
+        const matchedEntry = allPotentialMatches[matchResult.lineNumber - 2];
+        return {
+          isMatch: true,
+          reference: matchedEntry.reference,
+          rowIndex: matchedEntry.rowIndex,
+          confidence: matchResult.confidence,
+          explanation: matchResult.explanation,
+          sheet: matchedEntry.reference.split('!')[0]
+        };
       }
 
       logEvent('no_match_found', {
         supplier: entry.supplier,
-        lastPromptTried: entry.lastPromptTried,     // Log the last prompt that was tried
-        lastResponseReceived: entry.lastResponse,    // Log the last response that led to no match
         timestamp_nomatch: new Date().toISOString()
       });
+
       return { isMatch: false };
     } catch (error) {
       logEvent('entry_processing_error', {
         supplier: entry.supplier,
         error: error.message,
-        stack: error.stack,
-        lastPromptTried: entry.lastPromptTried,     // Log the prompt that caused the error
-        lastResponseReceived: entry.lastResponse,    // Log the response that caused the error
-        timestamp_error: new Date().toISOString()
+        stack: error.stack
       });
       throw error;
     }
@@ -382,87 +409,71 @@ Remember: It's better to find a correct match with medium confidence than miss a
     });
 
     try {
-      // Get all data from the sheet
       const data = sheet.getDataRange().getValues();
       const headers = data[0];
-      
-      // Convert column letter to index (0-based)
-      const matchColumnIndex = matchColumn.toUpperCase().charCodeAt(0) - 65; // 'A'=0, 'B'=1, 'C'=2, etc.
-      
+      const matchColumnIndex = matchColumn.toUpperCase().charCodeAt(0) - 65;
+
+      // Log just essential info
       logEvent('column_mapping', {
+        sheet: sheetName,
         columnLetter: matchColumn,
-        columnIndex: matchColumnIndex,
-        headerFound: headers[matchColumnIndex]
+        columnIndex: matchColumnIndex
       });
 
       if (matchColumnIndex < 0 || matchColumnIndex >= headers.length) {
         throw new Error(`Invalid column ${matchColumn} in ${sheetName}`);
       }
 
-      // Create array of potential matches for LLM
-      const potentialMatches = data.slice(1) // Skip header row
+      // Create more concise potential matches
+      const potentialMatches = data.slice(1)
         .map((row, index) => ({
           text: row[matchColumnIndex].toString(),
-          rowIndex: index + 2, // +2 because we skipped header and array is 0-based
+          rowIndex: index + 2,
           reference: `${sheetName}!${matchColumn}${index + 2}`
-        }));
+        }))
+        .filter(match => match.text.trim() !== ''); // Only include non-empty matches
 
-      // Create LLM query
+      // Log potential matches count
+      logEvent('potential_matches', {
+        sheet: sheetName,
+        supplier: entry.supplier,
+        matchCount: potentialMatches.length
+      });
+
       const prompt = createMatchingQuery(entry.supplier, 
         potentialMatches.map(m => `${m.reference}: ${m.text}`));
 
-      // Get Claude service
       const claude = getClaudeService();
-      
-      // Get match decision from LLM
       const matchResult = claude.matchClient(entry.supplier, potentialMatches);
 
-      // Log the match attempt
+      // Log match result with essential info
       logEvent('match_attempt', {
         supplier: entry.supplier,
         sheet: sheetName,
-        matchResult,
-        promptUsed: prompt
+        matched: matchResult.matched,
+        confidence: matchResult.confidence,
+        lineNumber: matchResult.lineNumber,
+        matchedText: matchResult.lineNumber ? potentialMatches[matchResult.lineNumber - 2].text : null
       });
 
       if (matchResult.matched && matchResult.confidence > 0.5) {
         const matchedEntry = potentialMatches[matchResult.lineNumber - 2];
-        logEvent('match_found', {
-          supplier: entry.supplier,
-          matchedWith: matchedEntry.text,
-          confidence: matchResult.confidence,
-          explanation: matchResult.explanation,
-          matchingPatterns: {
-            exactMatch: entry.supplier.toLowerCase() === matchedEntry.text.toLowerCase(),
-            partialMatch: entry.supplier.toLowerCase().includes(matchedEntry.text.toLowerCase()) || 
-                         matchedEntry.text.toLowerCase().includes(entry.supplier.toLowerCase()),
-            withoutLegalEntity: entry.supplier.toLowerCase().replace(/s\.?r\.?l\.?|s\.?a\.?/gi, '').trim() ===
-                               matchedEntry.text.toLowerCase().replace(/s\.?r\.?l\.?|s\.?a\.?/gi, '').trim()
-          }
-        });
         return {
           isMatch: true,
           reference: matchedEntry.reference,
           rowIndex: matchedEntry.rowIndex,
           confidence: matchResult.confidence,
-          explanation: matchResult.explanation,
-          promptUsed: prompt,
-          rawResponse: matchResult
+          explanation: matchResult.explanation
         };
       }
 
-      return {
-        isMatch: false,
-        promptUsed: prompt,
-        rawResponse: matchResult
-      };
+      return { isMatch: false };
 
     } catch (error) {
       logEvent('sheet_check_error', {
         supplier: entry.supplier,
         sheet: sheetName,
-        error: error.message,
-        stack: error.stack
+        error: error.message
       });
       throw error;
     }
