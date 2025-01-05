@@ -174,6 +174,12 @@ Remember: It's better to find a correct match with medium confidence than miss a
         const newValue = currentValue + entry.amount;
         targetCell.setValue(newValue);
 
+        // If match is in Expenses sheet, mark "yes" in column C
+        if (sheetName === 'Expenses') {
+          const markCell = expensesSheet.getRange(rowNumber, 3); // Column C
+          markCell.setValue('yes');
+        }
+
         return {
           isMatch: true,
           reference: matchResult.reference,
